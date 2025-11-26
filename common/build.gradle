@@ -15,9 +15,9 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
 
-        buildConfigField("String", "DEXCOM_APPLICATION_ID", rootProject.DEXCOM_APPLICATION_ID)
-        buildConfigField("String", "DEXCOM_APPLICATION_ID_APAC", rootProject.DEXCOM_APPLICATION_ID_APAC)
-        buildConfigField("String", "NIGHTSCOUT_DEBUG_SERVER", rootProject.NIGHTSCOUT_DEBUG_SERVER)
+        buildConfigField("String", "DEXCOM_APPLICATION_ID", rootProject.DEXCOM_APPLICATION_ID ?: "\"\"")
+        buildConfigField("String", "DEXCOM_APPLICATION_ID_APAC", rootProject.DEXCOM_APPLICATION_ID_APAC ?: "\"\"")
+        buildConfigField("String", "NIGHTSCOUT_DEBUG_SERVER", rootProject.NIGHTSCOUT_DEBUG_SERVER ?: "\"\"")
         buildConfigField("int", "BASE_VERSION", rootProject.versionCode.toString())
     }
 
