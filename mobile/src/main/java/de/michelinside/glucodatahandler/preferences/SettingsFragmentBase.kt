@@ -486,3 +486,5 @@ class GDASettingsFragment: SettingsFragmentBase(R.xml.pref_gda) {
     }
 
 }
+
+class PredictionSettingsFragment: SettingsFragmentBase(R.xml.pref_predictions) {}

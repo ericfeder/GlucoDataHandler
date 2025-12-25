@@ -29,12 +29,22 @@
 
     <ImageView
         android:id="@+id/trendImage"
-        android:layout_weight="2"
+        android:layout_weight="1"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:contentDescription="@string/trend"
         android:gravity="center"
         android:layout_marginStart="6dp"
+        android:src="@drawable/icon_question" />
+
+    <ImageView
+        android:id="@+id/modelTrendImage"
+        android:layout_weight="1"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/trend"
+        android:gravity="center"
+        android:visibility="gone"
         android:src="@drawable/icon_question" />
     </LinearLayout>
 </LinearLayout>

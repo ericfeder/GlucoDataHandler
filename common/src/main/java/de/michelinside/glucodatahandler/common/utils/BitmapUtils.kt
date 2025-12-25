@@ -317,10 +317,12 @@ object BitmapUtils {
         resizeFactor: Float = 1F,
         width: Int = 100,
         height: Int = 100,
-        withShadow: Boolean = false
+        withShadow: Boolean = false,
+        rate: Float? = null
     ): Bitmap? {
+        val rateValue = rate ?: ReceiveData.rate
         return rateToBitmap(
-            ReceiveData.rate, color ?: ReceiveData.getGlucoseColor(), resizeFactor = resizeFactor, width = width, height = height, strikeThrough = ReceiveData.isObsoleteShort(),
+            rateValue, color ?: ReceiveData.getGlucoseColor(), resizeFactor = resizeFactor, width = width, height = height, strikeThrough = ReceiveData.isObsoleteShort(),
             withShadow = withShadow
         )
     }
@@ -331,9 +333,10 @@ object BitmapUtils {
         resizeFactor: Float = 1F,
         width: Int = 100,
         height: Int = 100,
-        withShadow: Boolean = false
+        withShadow: Boolean = false,
+        rate: Float? = null
     ): Icon {
-        return IconBitmapPool.createIcon(key, getRateAsBitmap(color, resizeFactor, width, height, withShadow))
+        return IconBitmapPool.createIcon(key, getRateAsBitmap(color, resizeFactor, width, height, withShadow, rate))
     }
 
     fun getGlucoseTrendBitmap(color: Int? = null, width: Int = 100, height: Int = 100, small: Boolean = false, withShadow: Boolean = false): Bitmap? {

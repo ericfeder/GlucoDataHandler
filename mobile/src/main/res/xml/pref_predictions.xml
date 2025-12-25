@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <PreferenceCategory
+        android:title="@string/pref_predictions_category"
+        app:iconSpaceReserved="false">
+        
+        <androidx.preference.SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="predictions_enabled"
+            android:summary="@string/pref_predictions_enabled_summary"
+            android:title="@string/pref_predictions_enabled"
+            app:iconSpaceReserved="false" />
+            
+        <androidx.preference.SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="show_model_arrow"
+            android:summary="@string/pref_show_model_arrow_summary"
+            android:title="@string/pref_show_model_arrow"
+            android:dependency="predictions_enabled"
+            app:iconSpaceReserved="false" />
+            
+    </PreferenceCategory>
+
+</PreferenceScreen>
+
+

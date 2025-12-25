@@ -20,6 +20,7 @@ import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
 import de.michelinside.glucodatahandler.common.notifier.NotifySource
 import de.michelinside.glucodatahandler.common.utils.BitmapUtils
 import de.michelinside.glucodatahandler.common.utils.PackageUtils
+import de.michelinside.glucodatahandler.common.prediction.PredictionData
 
 
 enum class WidgetType(val cls: Class<*>) {
@@ -225,6 +226,31 @@ abstract class GlucoseBaseWidget(private val type: WidgetType,
                     )
                 )
                 remoteViews.setContentDescription(R.id.trendImage, ReceiveData.getRateAsText(context))
+                
+                // Show model prediction arrow if enabled
+                if (PredictionData.showModelArrow && PredictionData.hasPredictions()) {
+                    try {
+                        remoteViews.setViewVisibility(R.id.modelTrendImage, View.VISIBLE)
+                        remoteViews.setImageViewIcon(
+                            R.id.modelTrendImage, BitmapUtils.getRateAsIcon(
+                                "widget_model_trend_$appWidgetId",
+                                rate = PredictionData.modelRate,
+                                width = size,
+                                height = size
+                            )
+                        )
+                        remoteViews.setContentDescription(R.id.modelTrendImage, "Model prediction: ${PredictionData.modelTrendLabel}")
+                    } catch (e: Exception) {
+                        Log.d(LOG_ID, "Model trend image not available in this layout")
+                        // Layout may not have modelTrendImage
+                    }
+                } else {
+                    try {
+                        remoteViews.setViewVisibility(R.id.modelTrendImage, View.GONE)
+                    } catch (e: Exception) {
+                        // Layout may not have modelTrendImage
+                    }
+                }
             }
         }
 

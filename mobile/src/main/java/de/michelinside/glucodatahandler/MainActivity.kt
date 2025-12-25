@@ -91,11 +91,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     private lateinit var iobCobLayout: LinearLayout
     private lateinit var txtLastValue: TextView
     private lateinit var txtVersion: TextView
-    private lateinit var tableDetails: TableLayout
     private lateinit var tableStatistics: TableLayout
-    private lateinit var tableDelta: TableLayout
-    private lateinit var tableConnections: TableLayout
-    private lateinit var tableAlarms: TableLayout
     private lateinit var tableNotes: TableLayout
     private lateinit var btnSources: Button
     private lateinit var btnHelp: Button
@@ -140,11 +136,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             btnSources = findViewById(R.id.btnSources)
             btnHelp = findViewById(R.id.btnHelp)
             noDataLayout = findViewById(R.id.layout_no_data)
-            tableConnections = findViewById(R.id.tableConnections)
-            tableAlarms = findViewById(R.id.tableAlarms)
-            tableDetails = findViewById(R.id.tableDetails)
             tableStatistics = findViewById(R.id.tableStatistics)
-            tableDelta = findViewById(R.id.tableDelta)
             tableNotes = findViewById(R.id.tableNotes)
             chart = findViewById(R.id.chart)
             layoutWithGraph = findViewById(R.id.glucose_with_graph)
@@ -475,6 +467,11 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     startActivity(intent)
                     return true
                 }
+                R.id.action_predictions -> {
+                    val intent = Intent(this, PredictionActivity::class.java)
+                    startActivity(intent)
+                    return true
+                }
                 R.id.action_help -> {
                     val browserIntent = Intent(
                         Intent.ACTION_VIEW,
@@ -603,7 +600,6 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                 }
             }
             updateAlarmIcon()
-            updateAlarmsTable()
         } catch (exc: Exception) {
             Log.e(LOG_ID, "updateAlarmIcon exception: " + exc.message.toString() )
         }
@@ -673,10 +669,6 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
 
             //chartHandler.update()
             updateNotesTable()
-            updateAlarmsTable()
-            updateConnectionsTable()
-            updateDeltaTable()
-            updateDetailsTable()
             updateStatisticsTable()
 
             updateAlarmIcon()
@@ -764,188 +756,6 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             tableNotes.addView(createRow(CR.string.activity_main_battery_optimization_disabled, onClickListener))
         }
         checkTableVisibility(tableNotes)
-    }
-
-    private fun updateConnectionsTable() {
-        tableConnections.removeViews(1, maxOf(0, tableConnections.childCount - 1))
-        if (SourceStateData.lastState != SourceState.NONE) {
-            val msg = SourceStateData.getStateMessage(this)
-            tableConnections.addView(
-                createRow(
-                    SourceStateData.lastSource.resId,
-                    msg
-                )
-            )
-            if(SourceStateData.lastState == SourceState.ERROR) {
-                if(SourceStateData.lastSource == DataSource.DEXCOM_SHARE && msg.contains("500:")) {
-                    val server = sharedPref.getString(Constants.SHARED_PREF_DEXCOM_SHARE_SERVER, "eu") ?: "eu"
-                    val browserIntent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse(resources.getString(DexcomShareSourceTask.getClarityUrlRes(server)))
-                    )
-                    val onClickListener = OnClickListener {
-                        try {
-                            startActivity(browserIntent)
-                        } catch (exc: Exception) {
-                            Log.e(LOG_ID, "Dexcom browse exception: " + exc.message.toString() )
-                        }
-                    }
-                    tableConnections.addView(
-                        createRow(
-                            resources.getString(DexcomShareSourceTask.getClarityUrlSummaryRes(server)),
-                            onClickListener
-                        )
-                    )
-                }
-            }
-            if(SourceStateData.lastErrorInfo.isNotEmpty()) {
-                // add error specific information in an own row
-                tableConnections.addView(createRow(SourceStateData.lastErrorInfo))
-            }
-            tableConnections.addView(createRow(CR.string.request_timestamp, Utils.getUiTimeStamp(SourceStateData.lastStateTime)))
-        }
-
-        if (WearPhoneConnection.nodesConnected) {
-            if (WearPhoneConnection.connectionError) {
-                val onResetClickListener = OnClickListener {
-                    GlucoDataService.resetWearPhoneConnection()
-                }
-                tableConnections.addView(createRow(CR.string.source_wear, resources.getString(CR.string.detail_reset_connection), onResetClickListener))
-            } else {
-                val onCheckClickListener = OnClickListener {
-                    GlucoDataService.checkForConnectedNodes(false)
-                }
-                WearPhoneConnection.getNodeConnectionStates(this).forEach { (name, state) ->
-                    if(state > 0)
-                        tableConnections.addView(createProgressBarRow(name, state.toFloat(), BatteryLevelWidget.getColor(state)))
-                    else if(state == 0)
-                        tableConnections.addView(createRow(name, resources.getString(CR.string.state_connected), onCheckClickListener))
-                    else if(state == -1)
-                        tableConnections.addView(createRow(name, resources.getString(CR.string.state_await_data), onCheckClickListener))
-                }
-            }
-        }
-        if (WatchDrip.connected) {
-            tableConnections.addView(createRow(CR.string.pref_switch_watchdrip_enabled, resources.getString(CR.string.connected_label)))
-        }
-
-        if (CarModeReceiver.AA_connected) {
-            tableConnections.addView(createRow(CR.string.pref_cat_android_auto, resources.getString(CR.string.connected_label)))
-        }
-        checkTableVisibility(tableConnections)
-    }
-
-    private fun updateAlarmsTable() {
-        tableAlarms.removeViews(1, maxOf(0, tableAlarms.childCount - 1))
-        if(ReceiveData.time > 0) {
-            val alarmType = ReceiveData.getAlarmType()
-            if (alarmType != AlarmType.OK)
-                tableAlarms.addView(createRow(CR.string.info_label_alarm, resources.getString(alarmType.resId)))
-            val deltaAlarmType = ReceiveData.getDeltaAlarmType()
-            if (deltaAlarmType != AlarmType.NONE)
-                tableAlarms.addView(createRow(CR.string.info_label_alarm, resources.getString(deltaAlarmType.resId)))
-        }
-        if (AlarmHandler.isTempInactive)
-            tableAlarms.addView(createRow(CR.string.temp_disabled_until, AlarmHandler.inactiveEndTimestamp))
-        else if (AlarmHandler.isSnoozeActive)
-            tableAlarms.addView(createRow(CR.string.snooze_until, AlarmHandler.snoozeTimestamp))
-        checkTableVisibility(tableAlarms)
-    }
-
-    private fun updateDeltaTable() {
-        tableDelta.removeViews(1, maxOf(0, tableDelta.childCount - 1))
-        if(!ReceiveData.isObsoleteShort()) {
-            if(!ReceiveData.delta1Min.isNaN())
-                tableDelta.addView(createRow(CR.string.delta_per_minute, GlucoDataUtils.deltaToString(ReceiveData.delta1Min, true)))
-            if(!ReceiveData.delta5Min.isNaN())
-                tableDelta.addView(createRow(CR.string.delta_per_5_minute, GlucoDataUtils.deltaToString(ReceiveData.delta5Min, true)))
-            if(!ReceiveData.delta15Min.isNaN())
-                tableDelta.addView(createRow(CR.string.delta_per_15_minute, GlucoDataUtils.deltaToString(ReceiveData.delta15Min, true)))
-            /*if(BuildConfig.DEBUG) {
-                if(!ReceiveData.calculatedRate.isNaN()) {
-                    tableDelta.addView(createRow("Calculated rate", Utils.round(ReceiveData.calculatedRate, 2).toString() + " (" + GlucoDataUtils.getRateDegrees(ReceiveData.calculatedRate).toString() + "°)"))
-                }
-                if(!ReceiveData.sourceRate.isNaN()) {
-                    tableDelta.addView(createRow("Source rate", Utils.round(ReceiveData.sourceRate, 2).toString() + " (" + GlucoDataUtils.getRateDegrees(ReceiveData.sourceRate).toString() + "°)"))
-                }
-            } else if (!Constants.RELEASE) {
-                if(!ReceiveData.rate.isNaN()) {
-                    tableDelta.addView(createRow(CR.string.trend, GlucoDataUtils.getRateDegrees(ReceiveData.rate).toString() + "°"))
-                }
-            }*/
-        }
-        checkTableVisibility(tableDelta)
-    }
-
-    private fun updateDetailsTable() {
-        tableDetails.removeViews(1, maxOf(0, tableDetails.childCount - 1))
-        if(ReceiveData.time > 0) {
-            if (!ReceiveData.isObsoleteLong() && sharedPref.getBoolean(Constants.SHARED_PREF_SHOW_OTHER_UNIT, false)) {
-                tableDetails.addView(createRow(ReceiveData.getOtherUnit(), ReceiveData.getGlucoseAsOtherUnit() + " (Δ " + ReceiveData.getDeltaAsOtherUnit() + ")"))
-            }
-            tableDetails.addView(createRow(CR.string.info_label_timestamp, Utils.getUiTimeStamp(ReceiveData.time)))
-            if (!ReceiveData.isIobCobObsolete(1.days.inWholeSeconds.toInt()))
-                tableDetails.addView(createRow(CR.string.info_label_iob_cob_timestamp, DateFormat.getTimeInstance(
-                    DateFormat.DEFAULT).format(Date(ReceiveData.iobCobTime))))
-            if (ReceiveData.sensorID?.isNotEmpty() == true) {
-                tableDetails.addView(createRow(CR.string.info_label_sensor_id, if(BuildConfig.DEBUG) "ABCDE12345" else ReceiveData.sensorID!!))
-            }
-            if(ReceiveData.sensorStartTime > 0) {
-                val duration = Duration.ofMillis(System.currentTimeMillis() - ReceiveData.sensorStartTime)
-                val days = duration.toDays()
-                val hours = duration.minusDays(days).toHours()
-                val runtime = sharedPref.getString(Constants.SHARED_PREF_SENSOR_RUNTIME, "14")?.toFloatOrNull()
-                if(runtime != null && runtime > 0F) {
-                    val max = runtime * 24 * 60 // minutes
-                    Log.d(LOG_ID, "Sensor age: ${Utils.formatDuration(duration)} - runtime: ${Utils.formatDurationFromSeconds(max.toLong()*60)}")
-                    val progress = min(duration.toMinutes().toFloat(), max)
-                    val color = if(max - progress <= 60) {
-                        ReceiveData.getAlarmTypeColor(AlarmType.VERY_LOW)
-                    } else if(max - progress <= (24*60)) {
-                        ReceiveData.getAlarmTypeColor(AlarmType.LOW)
-                    } else {
-                        resources.getColor(CR.color.main)
-                    }
-                    tableDetails.addView(createProgressBarRow(CR.string.sensor_age_label, progress*100 / max, color, createSensorAgeColumn(duration, max)/* + "\n-> " + resources.getString(CR.string.sensor_age_value).format(diffDays, diffHours)*/))
-                } else
-                    tableDetails.addView(createRow(CR.string.sensor_age_label, resources.getString(CR.string.sensor_age_value).format(days, hours)))
-
-            }
-            if(ReceiveData.source != DataSource.NONE)
-                tableDetails.addView(createRow(CR.string.info_label_source, resources.getString(ReceiveData.source.resId)))
-        }
-        checkTableVisibility(tableDetails)
-    }
-
-    private fun getSensorAgeAsString(duration: Duration): String {
-        if(duration.isNegative || duration.toMinutes() < 60) {
-            return resources.getString(CR.string.elapsed_time).format(duration.toMinutes())
-        }
-        val days = duration.toDays()
-        val hours = duration.minusDays(days).toHours()
-        return resources.getString(CR.string.sensor_age_value).format(days, hours)
-    }
-
-    private fun createSensorAgeColumn(duration: Duration, runtimeMinutes: Float): TextView {
-        val onClickListener = OnClickListener {
-            try {
-                with(sharedPref.edit()) {
-                    putBoolean(Constants.SHARED_PREF_SHOW_SENSOR_AGE_REMAIN_TIME, !sharedPref.getBoolean(Constants.SHARED_PREF_SHOW_SENSOR_AGE_REMAIN_TIME, false))
-                    apply()
-                }
-                updateDetailsTable()
-            } catch (exc: Exception) {
-                Log.e(LOG_ID, "Sensor age exception: " + exc.message.toString() )
-            }
-        }
-        val showRemaining = sharedPref.getBoolean(Constants.SHARED_PREF_SHOW_SENSOR_AGE_REMAIN_TIME, false)
-        return if(showRemaining) {
-            val runtimeDuration = Duration.ofMinutes(runtimeMinutes.toLong())
-            val diffDuration = runtimeDuration.minus(duration)
-            createColumn(getSensorAgeAsString(diffDuration) + " >", true, onClickListener)
-        } else {
-            createColumn("< " + getSensorAgeAsString(duration), true, onClickListener)
-        }
     }
 
     private fun updateStatisticsTable() {

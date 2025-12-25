@@ -195,48 +195,6 @@
     </TableLayout>
 
     <TableLayout
-        android:id="@+id/tableAlarms"
-        android:background="@drawable/layout_bg"
-        android:layout_marginTop="10dp"
-        android:divider="?android:attr/dividerHorizontal"
-        android:showDividers="middle"
-        android:layout_height="wrap_content"
-        android:layout_width="match_parent">
-
-        <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
-            tools:ignore="UselessParent">
-            <TextView
-                android:textStyle="bold"
-                android:textSize="20sp"
-                android:layout_height="wrap_content"
-                android:layout_width="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/alarm_header"/>
-        </TableRow>
-    </TableLayout>
-
-    <TableLayout
-        android:id="@+id/tableDelta"
-        android:layout_marginTop="10dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@drawable/layout_bg"
-        android:divider="?android:attr/dividerHorizontal"
-        android:showDividers="middle">
-
-        <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
-            tools:ignore="UselessParent">
-            <TextView
-                android:textStyle="bold"
-                android:textSize="20sp"
-                android:layout_height="wrap_content"
-                android:layout_width="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/info_label_delta"/>
-        </TableRow>
-    </TableLayout>
-
-    <TableLayout
         android:id="@+id/tableStatistics"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -282,48 +240,6 @@
                         android:text="7d"
                         tools:ignore="HardcodedText,RtlSymmetry,TouchTargetSizeCheck" />
                 </RadioGroup>
-        </TableRow>
-    </TableLayout>
-
-    <TableLayout
-        android:id="@+id/tableDetails"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/layout_bg"
-        android:divider="?android:attr/dividerHorizontal"
-        android:showDividers="middle">
-
-        <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
-            tools:ignore="UselessParent">
-            <TextView
-                android:textStyle="bold"
-                android:textSize="20sp"
-                android:layout_height="wrap_content"
-                android:layout_width="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/table_header_details"/>
-        </TableRow>
-    </TableLayout>
-
-    <TableLayout
-        android:id="@+id/tableConnections"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/layout_bg"
-        android:divider="?android:attr/dividerHorizontal"
-        android:showDividers="middle">
-
-        <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
-            tools:ignore="UselessParent">
-            <TextView
-                android:textStyle="bold"
-                android:textSize="20sp"
-                android:layout_height="wrap_content"
-                android:layout_width="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/table_header_connections"/>
         </TableRow>
     </TableLayout>
 

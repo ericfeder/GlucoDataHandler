@@ -20,6 +20,7 @@ import de.michelinside.glucodatahandler.common.utils.Utils
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.util.UUID
 
 
 // API docu: https://gist.github.com/StephenBlackWasAlreadyTaken/adb0525344bedade1e25
@@ -69,10 +70,14 @@ class DexcomShareSourceTask : DataSourceTask(Constants.SHARED_PREF_DEXCOM_SHARE_
         }
 
         private fun getApplicationId(countryCode: String): String {
-            return when(countryCode) {
+            val id = when(countryCode) {
                 "jp" -> BuildConfig.DEXCOM_APPLICATION_ID_APAC
                 else -> BuildConfig.DEXCOM_APPLICATION_ID
             }
+            if (id.isEmpty()) {
+                return "d89443d2-327c-4a6f-89e5-496bbb0317db"
+            }
+            return id
         }
 
     }

@@ -691,6 +691,10 @@ abstract class GlucoDataService(source: AppSource) : WearableListenerService(), 
             sharedPref!!.registerOnSharedPreferenceChangeListener(this)
 
             TextToSpeechUtils.initTextToSpeech(this)
+            
+            // Initialize prediction service for on-device ML predictions
+            de.michelinside.glucodatahandler.common.prediction.PredictionData.init(this)
+            
             created = true
             InternalNotifier.notify(this, NotifySource.SERVICE_STARTED, null)
 
@@ -731,6 +735,7 @@ abstract class GlucoDataService(source: AppSource) : WearableListenerService(), 
             }
             TimeTaskService.stop()
             SourceTaskService.stop()
+            de.michelinside.glucodatahandler.common.prediction.PredictionData.close(this)
             connection!!.close()
             connection = null
             super.onDestroy()

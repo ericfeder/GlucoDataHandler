@@ -9,6 +9,7 @@ import de.michelinside.glucodatahandler.common.chart.GlucoseChart
 
 class MainChartCreator(chart: GlucoseChart, context: Context, durationPref: String, transparencyPref: String) : ChartCreator(chart, context, durationPref, transparencyPref) {
     private val LOG_ID = "GDH.Chart.MainCreator"
+    override val showAverage = false
 
     override fun init() {
         graphDays = sharedPref.getInt(Constants.SHARED_PREF_GRAPH_DAYS_PHONE_MAIN, 2)

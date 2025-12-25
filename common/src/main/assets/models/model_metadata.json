@@ -1,0 +1,154 @@
+{
+  "version": "1.0",
+  "created_at": "2025-12-25T12:10:59.831628",
+  "training_start": "2025-06-04",
+  "training_end": "2025-12-04",
+  "training_samples": 51643,
+  "training_window_months": 6,
+  "feature_names": [
+    "past_delta_5min",
+    "past_delta_10min",
+    "past_delta_15min",
+    "past_delta_20min",
+    "past_delta_25min",
+    "past_delta_30min",
+    "past_delta_35min",
+    "past_delta_40min"
+  ],
+  "num_features": 8,
+  "prediction_horizons": [
+    5,
+    10,
+    15,
+    20,
+    25,
+    30
+  ],
+  "quantiles": {
+    "q10": 0.1,
+    "q50": 0.5,
+    "q90": 0.9
+  },
+  "exclusion_config": {
+    "before_window_minutes": 30,
+    "low_glucose_threshold": 80
+  },
+  "model_params": {
+    "n_estimators": 100,
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "verbose": -1,
+    "n_jobs": -1,
+    "random_state": 42
+  },
+  "models": [
+    {
+      "name": "model_q10_5min",
+      "horizon": 5,
+      "quantile": 0.1,
+      "quantile_name": "q10"
+    },
+    {
+      "name": "model_q50_5min",
+      "horizon": 5,
+      "quantile": 0.5,
+      "quantile_name": "q50"
+    },
+    {
+      "name": "model_q90_5min",
+      "horizon": 5,
+      "quantile": 0.9,
+      "quantile_name": "q90"
+    },
+    {
+      "name": "model_q10_10min",
+      "horizon": 10,
+      "quantile": 0.1,
+      "quantile_name": "q10"
+    },
+    {
+      "name": "model_q50_10min",
+      "horizon": 10,
+      "quantile": 0.5,
+      "quantile_name": "q50"
+    },
+    {
+      "name": "model_q90_10min",
+      "horizon": 10,
+      "quantile": 0.9,
+      "quantile_name": "q90"
+    },
+    {
+      "name": "model_q10_15min",
+      "horizon": 15,
+      "quantile": 0.1,
+      "quantile_name": "q10"
+    },
+    {
+      "name": "model_q50_15min",
+      "horizon": 15,
+      "quantile": 0.5,
+      "quantile_name": "q50"
+    },
+    {
+      "name": "model_q90_15min",
+      "horizon": 15,
+      "quantile": 0.9,
+      "quantile_name": "q90"
+    },
+    {
+      "name": "model_q10_20min",
+      "horizon": 20,
+      "quantile": 0.1,
+      "quantile_name": "q10"
+    },
+    {
+      "name": "model_q50_20min",
+      "horizon": 20,
+      "quantile": 0.5,
+      "quantile_name": "q50"
+    },
+    {
+      "name": "model_q90_20min",
+      "horizon": 20,
+      "quantile": 0.9,
+      "quantile_name": "q90"
+    },
+    {
+      "name": "model_q10_25min",
+      "horizon": 25,
+      "quantile": 0.1,
+      "quantile_name": "q10"
+    },
+    {
+      "name": "model_q50_25min",
+      "horizon": 25,
+      "quantile": 0.5,
+      "quantile_name": "q50"
+    },
+    {
+      "name": "model_q90_25min",
+      "horizon": 25,
+      "quantile": 0.9,
+      "quantile_name": "q90"
+    },
+    {
+      "name": "model_q10_30min",
+      "horizon": 30,
+      "quantile": 0.1,
+      "quantile_name": "q10"
+    },
+    {
+      "name": "model_q50_30min",
+      "horizon": 30,
+      "quantile": 0.5,
+      "quantile_name": "q50"
+    },
+    {
+      "name": "model_q90_30min",
+      "horizon": 30,
+      "quantile": 0.9,
+      "quantile_name": "q90"
+    }
+  ]
+}

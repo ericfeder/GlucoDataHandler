@@ -109,7 +109,15 @@
     <string name="no_new_value">No new value since %1$d minutes!</string>
 
     <string name="menu_settings">Settings</string>
+    <string name="predictions">Predictions</string>
     <string name="menu_sources">Sources</string>
+    
+    <string name="pref_predictions_category">Glucose Predictions</string>
+    <string name="pref_predictions_summary">Configure ML-based glucose prediction settings</string>
+    <string name="pref_predictions_enabled">Enable predictions</string>
+    <string name="pref_predictions_enabled_summary">Generate glucose predictions using trained ML model</string>
+    <string name="pref_show_model_arrow">Show model arrow</string>
+    <string name="pref_show_model_arrow_summary">Display model prediction arrow alongside Dexcom arrow on widgets</string>
     <string name="menu_group_github">GitHub</string>
     <string name="menu_update">Updates</string>
     <string name="menu_support">Support</string>

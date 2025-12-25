@@ -68,6 +68,16 @@
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
     <PreferenceCategory
+        android:title="@string/pref_predictions_category"
+        app:iconSpaceReserved="false">
+        <Preference
+            android:key="pref_predictions"
+            android:title="@string/predictions"
+            android:summary="@string/pref_predictions_summary"
+            app:fragment="de.michelinside.glucodatahandler.preferences.PredictionSettingsFragment"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    <PreferenceCategory
         android:title="@string/advanced_settings"
         app:iconSpaceReserved="false">
         <Preference
