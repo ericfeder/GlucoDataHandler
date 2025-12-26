@@ -202,15 +202,6 @@
                 android:value=".MainActivity" />
         </activity>
         <activity
-            android:name=".PredictionActivity"
-            android:label="@string/predictions"
-            android:parentActivityName=".MainActivity"
-            tools:ignore="LockedOrientationActivity">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".MainActivity" />
-        </activity>
-        <activity
             android:name=".GlucodataEvent"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"

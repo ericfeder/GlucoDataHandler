@@ -49,8 +49,18 @@
                 android:id="@+id/viewIcon"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="3"
+                android:layout_weight="2"
                 android:paddingVertical="2dp"
+                android:src="@drawable/icon_question"
+                tools:ignore="ContentDescription" />
+
+            <ImageView
+                android:id="@+id/modelViewIcon"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:paddingVertical="2dp"
+                android:visibility="gone"
                 android:src="@drawable/icon_question"
                 tools:ignore="ContentDescription" />
 

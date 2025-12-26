@@ -337,6 +337,8 @@ object Constants {
 
     const val PATIENT_NAME = "patient_name"
     const val SHARED_PREF_FULLSCREEN_LANDSCAPE = "fullscreen_landscape"
+    const val SHARED_PREF_PREDICTIONS_ENABLED = "predictions_enabled"
+    const val SHARED_PREF_SHOW_MODEL_ARROW = "show_model_arrow"
     const val SHARED_PREF_SENSOR_RUNTIME = "sensor_runtime"
     const val SHARED_PREF_STANDARD_STATISTICS = "standard_statistics"
     const val SHARED_PREF_SHOW_SENSOR_AGE_REMAIN_TIME = "main_show_sensor_age_remain_time"

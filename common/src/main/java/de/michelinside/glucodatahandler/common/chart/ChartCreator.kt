@@ -25,6 +25,7 @@ import de.michelinside.glucodatahandler.common.database.dbAccess
 import de.michelinside.glucodatahandler.common.notifier.InternalNotifier
 import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
 import de.michelinside.glucodatahandler.common.notifier.NotifySource
+import de.michelinside.glucodatahandler.common.prediction.PredictionData
 import de.michelinside.glucodatahandler.common.utils.GlucoDataUtils
 import de.michelinside.glucodatahandler.common.utils.GlucoseStatistics
 import de.michelinside.glucodatahandler.common.utils.Utils
@@ -80,6 +81,11 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
             return 0xFFCCCCCC.toInt()
         return context.resources.getColor(R.color.chart_limit_line_color)
     }
+    
+    // Prediction colors - blue theme
+    protected val predictionQ50Color = Color.rgb(30, 144, 255)  // Dodger Blue
+    protected val predictionIntervalColor = Color.rgb(100, 149, 237)  // Cornflower Blue for Q10/Q90 lines
+    protected open val showPredictions: Boolean get() = PredictionData.predictionsEnabled && PredictionData.hasPredictions()
 
 
     val enabled: Boolean get() {
@@ -130,7 +136,7 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
         val hasData = dbAccess.hasGlucoseValues(getMinTime())
         Log.d(LOG_ID, "updateNotifier -enabled: $enabled - has data: $hasData - xAxisEnabled: ${chart.xAxis.isEnabled}")
         if(enabled && (hasData || chart.xAxis.isEnabled)) {
-            InternalNotifier.addNotifier(context, this, mutableSetOf(NotifySource.TIME_VALUE, NotifySource.DAY_CHANGED))
+            InternalNotifier.addNotifier(context, this, mutableSetOf(NotifySource.TIME_VALUE, NotifySource.DAY_CHANGED, NotifySource.PREDICTION_UPDATE))
             hasTimeNotifier = true
         } else {
             remNotifier()
@@ -574,6 +580,82 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
             chart.data.addDataSet(timeSet)
         }
     }
+    
+    /**
+     * Add prediction lines to the chart if predictions are available.
+     * Shows Q50 (median) as a solid orange line and Q10-Q90 interval as dashed lines.
+     */
+    protected fun addPredictionData() {
+        if (!showPredictions || chart.data == null) return
+        
+        try {
+            val predictions = PredictionData.getPredictions()
+            if (predictions.isEmpty()) return
+            
+            val currentTime = ReceiveData.time
+            val currentGlucose = ReceiveData.rawValue.toFloat()
+            if (currentTime == 0L || currentGlucose <= 0) return
+            
+            Log.d(LOG_ID, "Adding prediction lines: ${predictions.size} horizons")
+            
+            // Create Q50 prediction line
+            val q50Entries = ArrayList<Entry>()
+            q50Entries.add(Entry(TimeValueFormatter.to_chart_x(currentTime), currentGlucose))
+            
+            // Create Q10 and Q90 entries for interval
+            val q10Entries = ArrayList<Entry>()
+            val q90Entries = ArrayList<Entry>()
+            q10Entries.add(Entry(TimeValueFormatter.to_chart_x(currentTime), currentGlucose))
+            q90Entries.add(Entry(TimeValueFormatter.to_chart_x(currentTime), currentGlucose))
+            
+            for (pred in predictions.sortedBy { it.horizon }) {
+                val predTime = currentTime + (pred.horizon * 60 * 1000L)
+                val chartX = TimeValueFormatter.to_chart_x(predTime)
+                q50Entries.add(Entry(chartX, pred.q50))
+                q10Entries.add(Entry(chartX, pred.q10))
+                q90Entries.add(Entry(chartX, pred.q90))
+            }
+            
+            // Q50 line (median prediction) - solid orange
+            val q50DataSet = LineDataSet(q50Entries, "Predicted").apply {
+                color = predictionQ50Color
+                lineWidth = 2f
+                setDrawCircles(true)
+                circleRadius = 3f
+                setCircleColor(predictionQ50Color)
+                setDrawValues(false)
+                setDrawCircleHole(false)
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            chart.data.addDataSet(q50DataSet)
+            
+            // Q10 line (lower bound) - dashed, thicker for visibility
+            val q10DataSet = LineDataSet(q10Entries, "Lower").apply {
+                color = predictionIntervalColor
+                lineWidth = 2f
+                setDrawCircles(false)
+                setDrawValues(false)
+                enableDashedLine(10f, 5f, 0f)
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            chart.data.addDataSet(q10DataSet)
+            
+            // Q90 line (upper bound) - dashed, thicker for visibility
+            val q90DataSet = LineDataSet(q90Entries, "Upper").apply {
+                color = predictionIntervalColor
+                lineWidth = 2f
+                setDrawCircles(false)
+                setDrawValues(false)
+                enableDashedLine(10f, 5f, 0f)
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            chart.data.addDataSet(q90DataSet)
+            
+            Log.d(LOG_ID, "Prediction lines added successfully")
+        } catch (e: Exception) {
+            Log.e(LOG_ID, "Error adding prediction data: ${e.message}")
+        }
+    }
 
     protected open fun updateChart(dataSet: LineDataSet?) {
         val right = isRight()
@@ -588,6 +670,7 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
         if(dataSet != null)
             chart.data = LineData(dataSet)
         addEmptyTimeData()
+        addPredictionData()
         chart.notifyDataSetChanged()
         invalidateChart(diffTimeMin, right, left)
     }

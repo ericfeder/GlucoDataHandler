@@ -62,6 +62,7 @@ import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
 import de.michelinside.glucodatahandler.common.notifier.NotifySource
 import de.michelinside.glucodatahandler.common.tasks.DexcomShareSourceTask
 import de.michelinside.glucodatahandler.common.ui.Dialogs
+import de.michelinside.glucodatahandler.common.prediction.PredictionData
 import de.michelinside.glucodatahandler.common.utils.BitmapUtils
 import de.michelinside.glucodatahandler.common.utils.GlucoDataUtils
 import de.michelinside.glucodatahandler.common.utils.GlucoseStatistics
@@ -84,6 +85,7 @@ import de.michelinside.glucodatahandler.common.R as CR
 class MainActivity : AppCompatActivity(), NotifierInterface {
     private lateinit var txtBgValue: TextView
     private lateinit var viewIcon: ImageView
+    private var modelViewIcon: ImageView? = null
     private lateinit var timeText: TextView
     private lateinit var deltaText: TextView
     private lateinit var iobText: TextView
@@ -127,6 +129,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
 
             txtBgValue = findViewById(R.id.txtBgValue)
             viewIcon = findViewById(R.id.viewIcon)
+            modelViewIcon = findViewById(R.id.modelViewIcon)
             timeText = findViewById(R.id.timeText)
             deltaText = findViewById(R.id.deltaText)
             iobText = findViewById(R.id.iobText)
@@ -259,7 +262,8 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                 NotifySource.CAR_CONNECTION,
                 NotifySource.TIME_VALUE,
                 NotifySource.ALARM_STATE_CHANGED,
-                NotifySource.SOURCE_STATE_CHANGE))
+                NotifySource.SOURCE_STATE_CHANGE,
+                NotifySource.PREDICTION_UPDATE))
             checkUncaughtException()
             checkMissingPermissions()
             checkNewSettings()
@@ -467,11 +471,6 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     startActivity(intent)
                     return true
                 }
-                R.id.action_predictions -> {
-                    val intent = Intent(this, PredictionActivity::class.java)
-                    startActivity(intent)
-                    return true
-                }
                 R.id.action_help -> {
                     val browserIntent = Intent(
                         Intent.ACTION_VIEW,
@@ -650,6 +649,22 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             }
             viewIcon.setImageIcon(BitmapUtils.getRateAsIcon("main_trend", withShadow = true))
             viewIcon.contentDescription = ReceiveData.getRateAsText(this)
+
+            // Update model prediction arrow
+            val showModelArrow = PredictionData.predictionsEnabled && 
+                                 sharedPref.getBoolean(Constants.SHARED_PREF_SHOW_MODEL_ARROW, true)
+            if (showModelArrow) {
+                val modelIcon = BitmapUtils.getModelRateAsIcon("main_model_trend", withShadow = true)
+                if (modelIcon != null) {
+                    modelViewIcon?.setImageIcon(modelIcon)
+                    modelViewIcon?.contentDescription = "Model: ${PredictionData.modelTrendLabel}"
+                    modelViewIcon?.visibility = View.VISIBLE
+                } else {
+                    modelViewIcon?.visibility = View.GONE
+                }
+            } else {
+                modelViewIcon?.visibility = View.GONE
+            }
 
             timeText.text = "🕒 ${ReceiveData.getElapsedRelativeTimeAsString(this)}"
             timeText.contentDescription = ReceiveData.getElapsedRelativeTimeAsString(this, true)
@@ -931,6 +946,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
 
                     txtBgValue = findViewById(R.id.txtBgValue)
                     viewIcon = findViewById(R.id.viewIcon)
+                    modelViewIcon = findViewById(R.id.modelViewIcon)
                     timeText = findViewById(R.id.timeText)
                     deltaText = findViewById(R.id.deltaText)
                     iobText = findViewById(R.id.iobText)
@@ -941,6 +957,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     layoutWithoutGraph?.visibility = View.VISIBLE
                     txtBgValue = findViewById(R.id.txtBgValue2)
                     viewIcon = findViewById(R.id.viewIcon2)
+                    modelViewIcon = findViewById(R.id.modelViewIcon2)
                     timeText = findViewById(R.id.timeText2)
                     deltaText = findViewById(R.id.deltaText2)
                     iobText = findViewById(R.id.iobText2)

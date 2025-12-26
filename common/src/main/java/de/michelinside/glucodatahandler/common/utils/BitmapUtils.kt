@@ -20,6 +20,7 @@ import de.michelinside.glucodatahandler.common.Constants
 import de.michelinside.glucodatahandler.common.GlucoDataService
 import de.michelinside.glucodatahandler.common.R
 import de.michelinside.glucodatahandler.common.ReceiveData
+import de.michelinside.glucodatahandler.common.prediction.PredictionData
 import kotlin.math.abs
 
 
@@ -337,6 +338,42 @@ object BitmapUtils {
         rate: Float? = null
     ): Icon {
         return IconBitmapPool.createIcon(key, getRateAsBitmap(color, resizeFactor, width, height, withShadow, rate))
+    }
+
+    /**
+     * Get model prediction rate as icon.
+     * Uses PredictionData.modelRate for the trend arrow.
+     */
+    fun getModelRateAsBitmap(
+        color: Int? = null,
+        resizeFactor: Float = 1F,
+        width: Int = 100,
+        height: Int = 100,
+        withShadow: Boolean = false
+    ): Bitmap? {
+        val modelRate = PredictionData.modelRate
+        if (modelRate.isNaN()) return null
+        return rateToBitmap(
+            modelRate, 
+            color ?: Color.rgb(30, 144, 255), // Blue for model predictions
+            resizeFactor = resizeFactor, 
+            width = width, 
+            height = height, 
+            strikeThrough = false,
+            withShadow = withShadow
+        )
+    }
+
+    fun getModelRateAsIcon(
+        key: String,
+        color: Int? = null,
+        resizeFactor: Float = 1F,
+        width: Int = 100,
+        height: Int = 100,
+        withShadow: Boolean = false
+    ): Icon? {
+        val bitmap = getModelRateAsBitmap(color, resizeFactor, width, height, withShadow)
+        return if (bitmap != null) IconBitmapPool.createIcon(key, bitmap) else null
     }
 
     fun getGlucoseTrendBitmap(color: Int? = null, width: Int = 100, height: Int = 100, small: Boolean = false, withShadow: Boolean = false): Bitmap? {

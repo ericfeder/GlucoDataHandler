@@ -22,13 +22,6 @@
             app:showAsAction="never" />
     </group>
     <group
-        android:id="@+id/group_predictions">
-        <item
-            android:id="@+id/action_predictions"
-            android:title="@string/predictions"
-            app:showAsAction="never" />
-    </group>
-    <group
         android:id="@+id/group_sources">
         <item
             android:id="@+id/action_sources"
