@@ -9,8 +9,8 @@
 .cxx
 local.properties
 .apk
-release/
-dev_release/
-debug/
-second/
+/release/
+/dev_release/
+/debug/
+/second/
 /.kotlin/
