@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center|top">
+
+        <TableLayout
+            android:id="@+id/tableStatistics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/layout_bg"
+            android:divider="?android:attr/dividerHorizontal"
+            android:showDividers="middle">
+
+            <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
+                tools:ignore="UselessParent" android:weightSum="2">
+                <TextView
+                    android:textStyle="bold"
+                    android:textSize="20sp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_width="wrap_content"
+                    android:gravity="center_vertical"
+                    android:text="@string/table_header_statistics"/>
+                <RadioGroup
+                    android:id="@+id/statGroup"
+                    android:textStyle="bold"
+                    android:textSize="20sp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:layout_width="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical|end">
+
+                    <RadioButton
+                        android:id="@+id/btnStat1d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:paddingEnd="10dp"
+                        android:text="1d"
+                        tools:ignore="HardcodedText,RtlSymmetry,TouchTargetSizeCheck" />
+
+                    <RadioButton
+                        android:id="@+id/btnStat7d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:checked="true"
+                        android:paddingEnd="10dp"
+                        android:text="7d"
+                        tools:ignore="HardcodedText,RtlSymmetry,TouchTargetSizeCheck" />
+                </RadioGroup>
+            </TableRow>
+        </TableLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/swipe_left_hint"
+            android:textSize="14sp"
+            android:alpha="0.6" />
+
+    </LinearLayout>
+</ScrollView>
+
+
+
+
+
+

@@ -63,8 +63,8 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     //debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
 
-    // ONNX Runtime for on-device ML inference
-    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.17.0'
+    // TensorFlow Lite for TCN model inference
+    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
 
     //Room
     def roomVersion = "2.7.2"

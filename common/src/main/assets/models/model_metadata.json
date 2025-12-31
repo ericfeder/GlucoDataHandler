@@ -1,9 +1,10 @@
 {
-  "version": "1.0",
-  "created_at": "2025-12-25T12:10:59.831628",
-  "training_start": "2025-06-04",
-  "training_end": "2025-12-04",
-  "training_samples": 51643,
+  "version": "2.0",
+  "model_type": "original_combined",
+  "created_at": "2025-12-26T14:24:10.137177",
+  "training_start": "2025-06-26",
+  "training_end": "2025-12-26",
+  "training_samples": 51973,
   "training_window_months": 6,
   "feature_names": [
     "past_delta_5min",
@@ -13,9 +14,16 @@
     "past_delta_25min",
     "past_delta_30min",
     "past_delta_35min",
-    "past_delta_40min"
+    "past_delta_40min",
+    "interval_10_to_5",
+    "interval_15_to_10",
+    "interval_20_to_15",
+    "interval_25_to_20",
+    "interval_30_to_25",
+    "interval_35_to_30",
+    "interval_40_to_35"
   ],
-  "num_features": 8,
+  "num_features": 15,
   "prediction_horizons": [
     5,
     10,
@@ -29,10 +37,36 @@
     "q50": 0.5,
     "q90": 0.9
   },
-  "exclusion_config": {
-    "before_window_minutes": 30,
-    "low_glucose_threshold": 80
-  },
+  "interval_windows": [
+    [
+      10,
+      5
+    ],
+    [
+      15,
+      10
+    ],
+    [
+      20,
+      15
+    ],
+    [
+      25,
+      20
+    ],
+    [
+      30,
+      25
+    ],
+    [
+      35,
+      30
+    ],
+    [
+      40,
+      35
+    ]
+  ],
   "model_params": {
     "n_estimators": 100,
     "max_depth": 6,

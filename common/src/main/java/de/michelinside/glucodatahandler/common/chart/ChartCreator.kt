@@ -85,8 +85,11 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
     // Prediction colors - blue theme
     protected val predictionQ50Color = Color.rgb(30, 144, 255)  // Dodger Blue
     protected val predictionIntervalColor = Color.rgb(100, 149, 237)  // Cornflower Blue for Q10/Q90 lines
+    protected val nowLineColor = Color.rgb(180, 180, 180)  // Gray for "Now" vertical line
     protected open val showPredictions: Boolean get() = PredictionData.predictionsEnabled && PredictionData.hasPredictions()
 
+    // Callback for when a future/predicted point is clicked - parameter is horizon in minutes
+    var onFuturePointSelected: ((Int) -> Unit)? = null
 
     val enabled: Boolean get() {
         return chart.visibility == View.VISIBLE
@@ -200,6 +203,12 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
             if(enabled && !startDataSync()) {
                 if(chart.xAxis.axisMinimum > chart.xAxis.axisMaximum)
                     chart.postInvalidate()   // need to redraw the chart
+            }
+            // Ensure predictions are displayed if available
+            if(enabled && chart.data != null && showPredictions) {
+                addPredictionData()
+                chart.notifyDataSetChanged()
+                chart.postInvalidate()
             }
         } catch (exc: Exception) {
             Log.e(LOG_ID, "resume exception: " + exc.message.toString() )
@@ -368,13 +377,41 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
             val mMarker = CustomBubbleMarker(context, true)
             mMarker.chartView = chart
             chart.marker = mMarker
+            // Allow highlighting even when not tapping exactly on a data point
+            chart.maxHighlightDistance = 500f
             chart.setOnChartValueSelectedListener(object: OnChartValueSelectedListener {
                 override fun onValueSelected(e: Entry?, h: Highlight?) {
                     if (BuildConfig.DEBUG)
                         Log.v(LOG_ID, "onValueSelected: ${e?.x} - ${e?.y} - index: ${h?.dataSetIndex}")
+                    // Skip the time line dataset (index 1)
                     if(h?.dataSetIndex == 1) {
-                        // do not select time line
+                        // Try to find a better dataset at this x position
+                        val x = e?.x ?: return
+                        // Highlight the glucose dataset at this x instead
+                        val glucoseDataSet = chart.data?.getDataSetByIndex(0) as? LineDataSet
+                        if (glucoseDataSet != null && glucoseDataSet.entryCount > 0) {
+                            val closestEntry = glucoseDataSet.getEntryForXValue(x, Float.NaN)
+                            if (closestEntry != null) {
+                                chart.highlightValue(closestEntry.x, 0, false)
+                                return
+                            }
+                        }
                         chart.highlightValue(null)
+                    }
+                    
+                    // Check if this is a future/predicted point and notify listener
+                    e?.let { entry ->
+                        val timeValue = TimeValueFormatter.from_chart_x(entry.x)
+                        val currentTime = ReceiveData.time
+                        if (timeValue > currentTime) {
+                            // Calculate horizon in minutes
+                            val horizonMinutes = ((timeValue - currentTime) / 60000L).toInt()
+                            // Round to nearest available horizon (5, 10, 15, 20, 25, 30)
+                            val availableHorizons = listOf(5, 10, 15, 20, 25, 30)
+                            val nearestHorizon = availableHorizons.minByOrNull { abs(it - horizonMinutes) } ?: horizonMinutes
+                            Log.d(LOG_ID, "Future point selected: ${horizonMinutes}min ahead, snapped to ${nearestHorizon}min")
+                            onFuturePointSelected?.invoke(nearestHorizon)
+                        }
                     }
                 }
                 override fun onNothingSelected() {
@@ -589,67 +626,94 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
         if (!showPredictions || chart.data == null) return
         
         try {
+            // First, remove any existing prediction datasets and limit lines to avoid duplicates
+            val datasetsToRemove = mutableListOf<com.github.mikephil.charting.interfaces.datasets.ILineDataSet>()
+            for (i in 0 until chart.data.dataSetCount) {
+                val ds = chart.data.getDataSetByIndex(i)
+                if (ds.label in listOf("Predicted", "Lower", "Upper")) {
+                    datasetsToRemove.add(ds)
+                }
+            }
+            for (ds in datasetsToRemove) {
+                chart.data.removeDataSet(ds)
+            }
+            
+            // Remove existing "Now" limit line
+            val limitLinesToRemove = chart.xAxis.limitLines.filter { it.label == "Now" }
+            for (ll in limitLinesToRemove) {
+                chart.xAxis.removeLimitLine(ll)
+            }
+            
             val predictions = PredictionData.getPredictions()
             if (predictions.isEmpty()) return
             
-            val currentTime = ReceiveData.time
+            val lastReadingTime = ReceiveData.time
             val currentGlucose = ReceiveData.rawValue.toFloat()
-            if (currentTime == 0L || currentGlucose <= 0) return
+            if (lastReadingTime == 0L || currentGlucose <= 0) return
             
             Log.d(LOG_ID, "Adding prediction lines: ${predictions.size} horizons")
             
-            // Create Q50 prediction line
-            val q50Entries = ArrayList<Entry>()
-            q50Entries.add(Entry(TimeValueFormatter.to_chart_x(currentTime), currentGlucose))
+            // Add "Now" vertical line to separate actual from predictions
+            // Use actual current time so the line moves every minute
+            val nowX = TimeValueFormatter.to_chart_x(System.currentTimeMillis())
+            val nowLine = LimitLine(nowX, "Now").apply {
+                lineColor = nowLineColor
+                lineWidth = 1.5f
+                enableDashedLine(10f, 10f, 0f)
+                labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                textColor = nowLineColor
+                textSize = 10f
+            }
+            chart.xAxis.addLimitLine(nowLine)
             
-            // Create Q10 and Q90 entries for interval
+            // Create prediction line entries (future only, no current time point)
+            val q50Entries = ArrayList<Entry>()
             val q10Entries = ArrayList<Entry>()
             val q90Entries = ArrayList<Entry>()
-            q10Entries.add(Entry(TimeValueFormatter.to_chart_x(currentTime), currentGlucose))
-            q90Entries.add(Entry(TimeValueFormatter.to_chart_x(currentTime), currentGlucose))
             
             for (pred in predictions.sortedBy { it.horizon }) {
-                val predTime = currentTime + (pred.horizon * 60 * 1000L)
+                // Predictions are relative to the last reading time, not current time
+                val predTime = lastReadingTime + (pred.horizon * 60 * 1000L)
                 val chartX = TimeValueFormatter.to_chart_x(predTime)
                 q50Entries.add(Entry(chartX, pred.q50))
                 q10Entries.add(Entry(chartX, pred.q10))
                 q90Entries.add(Entry(chartX, pred.q90))
             }
             
-            // Q50 line (median prediction) - solid orange
+            // Q10 line (lower bound) - semi-transparent solid line
+            val q10DataSet = LineDataSet(q10Entries, "Lower").apply {
+                color = Color.argb(150, 100, 149, 237)  // Semi-transparent Cornflower Blue
+                lineWidth = 1f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            chart.data.addDataSet(q10DataSet)
+            
+            // Q90 line (upper bound) - semi-transparent solid line
+            val q90DataSet = LineDataSet(q90Entries, "Upper").apply {
+                color = Color.argb(150, 100, 149, 237)  // Semi-transparent Cornflower Blue
+                lineWidth = 1f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            chart.data.addDataSet(q90DataSet)
+            
+            // Q50 prediction dots (no connecting line)
             val q50DataSet = LineDataSet(q50Entries, "Predicted").apply {
-                color = predictionQ50Color
-                lineWidth = 2f
+                color = Color.TRANSPARENT  // Hide connecting line
+                lineWidth = 0f
                 setDrawCircles(true)
-                circleRadius = 3f
+                circleRadius = this@ChartCreator.circleRadius  // Match observed dots
                 setCircleColor(predictionQ50Color)
                 setDrawValues(false)
                 setDrawCircleHole(false)
                 axisDependency = YAxis.AxisDependency.RIGHT
             }
             chart.data.addDataSet(q50DataSet)
-            
-            // Q10 line (lower bound) - dashed, thicker for visibility
-            val q10DataSet = LineDataSet(q10Entries, "Lower").apply {
-                color = predictionIntervalColor
-                lineWidth = 2f
-                setDrawCircles(false)
-                setDrawValues(false)
-                enableDashedLine(10f, 5f, 0f)
-                axisDependency = YAxis.AxisDependency.RIGHT
-            }
-            chart.data.addDataSet(q10DataSet)
-            
-            // Q90 line (upper bound) - dashed, thicker for visibility
-            val q90DataSet = LineDataSet(q90Entries, "Upper").apply {
-                color = predictionIntervalColor
-                lineWidth = 2f
-                setDrawCircles(false)
-                setDrawValues(false)
-                enableDashedLine(10f, 5f, 0f)
-                axisDependency = YAxis.AxisDependency.RIGHT
-            }
-            chart.data.addDataSet(q90DataSet)
             
             Log.d(LOG_ID, "Prediction lines added successfully")
         } catch (e: Exception) {
@@ -840,16 +904,25 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
         }
         if(dataSource == NotifySource.TIME_VALUE) {
             Log.d(LOG_ID, "time elapsed: ${ReceiveData.getElapsedTimeMinute()}")
-            if(ReceiveData.getElapsedTimeMinute().mod(2) == 0) {
-                Log.d(LOG_ID, "update graph after time elapsed")
-                waitForCreation()
-                //createJob = scope.launch {
-                    try {
-                        updateTimeElapsed()
-                    } catch (exc: Exception) {
-                        Log.e(LOG_ID, "OnNotifyData exception: " + exc.message.toString() + " - " + exc.stackTraceToString() )
-                    }
-                //}
+            // Update every minute so the "Now" line moves smoothly
+            Log.d(LOG_ID, "update graph after time elapsed")
+            waitForCreation()
+            try {
+                updateTimeElapsed()
+            } catch (exc: Exception) {
+                Log.e(LOG_ID, "OnNotifyData exception: " + exc.message.toString() + " - " + exc.stackTraceToString() )
+            }
+        }
+        if(dataSource == NotifySource.PREDICTION_UPDATE) {
+            Log.d(LOG_ID, "Prediction update received - refreshing prediction lines")
+            try {
+                if(chart.data != null) {
+                    addPredictionData()
+                    chart.notifyDataSetChanged()
+                    chart.invalidate()
+                }
+            } catch (exc: Exception) {
+                Log.e(LOG_ID, "PREDICTION_UPDATE exception: " + exc.message.toString())
             }
         }
     }

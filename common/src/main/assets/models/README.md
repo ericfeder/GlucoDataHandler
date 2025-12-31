@@ -45,7 +45,9 @@ cp /Users/eric.feder/dexcom/data/onnx_models/model_metadata.json .
 
 ## Model Input
 
-Each model expects 8 float features representing past glucose deltas:
+Each model expects 15 float features (8 cumulative + 7 interval):
+
+**Cumulative features (indices 0-7):**
 - `past_delta_5min`: Current glucose - glucose 5 minutes ago
 - `past_delta_10min`: Current glucose - glucose 10 minutes ago
 - `past_delta_15min`: Current glucose - glucose 15 minutes ago
@@ -55,8 +57,23 @@ Each model expects 8 float features representing past glucose deltas:
 - `past_delta_35min`: Current glucose - glucose 35 minutes ago
 - `past_delta_40min`: Current glucose - glucose 40 minutes ago
 
+**Interval features (indices 8-14):**
+- `interval_10_to_5`: Glucose 5min ago - glucose 10min ago
+- `interval_15_to_10`: Glucose 10min ago - glucose 15min ago
+- `interval_20_to_15`: Glucose 15min ago - glucose 20min ago
+- `interval_25_to_20`: Glucose 20min ago - glucose 25min ago
+- `interval_30_to_25`: Glucose 25min ago - glucose 30min ago
+- `interval_35_to_30`: Glucose 30min ago - glucose 35min ago
+- `interval_40_to_35`: Glucose 35min ago - glucose 40min ago
+
 ## Model Output
 
 Each model outputs a single float value representing the predicted delta (change in glucose) for the specified horizon and quantile. Add this to the current glucose value to get the absolute predicted glucose.
+
+## Model Version
+
+- Version: 2.0 (Original model with combined features)
+- Training window: Rolling 6 months from latest data
+- Model type: Trained on ALL data (not exclusion-aware)
 
 

@@ -925,5 +925,9 @@
         <item quantity="other">%dd</item>
     </plurals>
 
+    <!-- Swipe navigation hints -->
+    <string name="swipe_left_hint">← Swipe left for main screen</string>
+    <string name="swipe_right_hint">Swipe right for statistics →</string>
+
 </resources>
 

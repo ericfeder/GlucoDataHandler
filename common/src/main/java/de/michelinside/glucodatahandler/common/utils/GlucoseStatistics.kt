@@ -95,21 +95,24 @@ object GlucoseStatistics {
     private var lastUpdate = 0L
     val statData1d = StatisticsData(1)
     val statData7d = StatisticsData(7)
+    val statData14d = StatisticsData(14)
 
     fun reset() {
         lastUpdate = 0
         statData1d.reset()
         statData7d.reset()
+        statData14d.reset()
     }
 
     fun update(standardStats: Boolean) {
         try {
-            if(Utils.getElapsedTimeMinute(lastUpdate) >= 30 || statData1d.needUpdate || statData7d.needUpdate) {
-                Log.d(LOG_ID, "update statistics - lastUpdate: ${Utils.getUiTimeStamp(lastUpdate)}, needUpdate: ${statData1d.needUpdate || statData7d.needUpdate}")
+            if(Utils.getElapsedTimeMinute(lastUpdate) >= 30 || statData1d.needUpdate || statData7d.needUpdate || statData14d.needUpdate) {
+                Log.d(LOG_ID, "update statistics - lastUpdate: ${Utils.getUiTimeStamp(lastUpdate)}, needUpdate: ${statData1d.needUpdate || statData7d.needUpdate || statData14d.needUpdate}")
                 // recalculate statistics data
                 lastUpdate = System.currentTimeMillis()
                 statData1d.update(standardStats)
                 statData7d.update(standardStats)
+                statData14d.update(standardStats)
             }
         } catch (exc: Exception) {
             Log.e(LOG_ID, "update exception: $exc")
@@ -117,7 +120,7 @@ object GlucoseStatistics {
     }
 
     val hasStatistics: Boolean get() {
-        return statData1d.hasData || statData7d.hasData
+        return statData1d.hasData || statData7d.hasData || statData14d.hasData
     }
 
     fun getStatisticsTitle(context: Context, statType: AlarmType, standardStats: Boolean): String {

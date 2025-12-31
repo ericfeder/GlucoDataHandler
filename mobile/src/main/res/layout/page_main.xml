@@ -1,0 +1,422 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:id="@+id/main_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        tools:context=".MainActivity"
+        android:orientation="vertical"
+        android:gravity="center|top">
+
+        <LinearLayout
+            android:id="@+id/layout_glucose_trend"
+            android:layout_width="250dp"
+            android:layout_height="80dp"
+            android:layout_marginTop="20dp"
+            android:gravity="center|top"
+            android:orientation="horizontal"
+            tools:ignore="UselessParent">
+
+            <TextView
+                android:id="@+id/txtBgValue"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="4"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
+                android:maxLines="1"
+                android:shadowColor="@color/black"
+                android:shadowRadius="5"
+                android:text="---"
+                android:textAlignment="viewEnd"
+                android:textColor="#757575"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+
+            <ImageView
+                android:id="@+id/viewIcon"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:paddingVertical="2dp"
+                android:src="@drawable/icon_question"
+                tools:ignore="ContentDescription" />
+
+            <ImageView
+                android:id="@+id/modelViewIcon"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:paddingVertical="2dp"
+                android:visibility="gone"
+                android:src="@drawable/icon_question"
+                tools:ignore="ContentDescription" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layout_delta_time"
+            android:layout_width="250dp"
+            android:layout_height="30dp"
+            android:gravity="center|top"
+            android:layout_marginBottom="5dp"
+            android:orientation="horizontal"
+            tools:ignore="UselessParent">
+
+            <TextView
+                android:id="@+id/timeText"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="4"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="center_vertical|end"
+                android:maxLines="1"
+                android:paddingEnd="10dp"
+                android:text="🕒 0 min"
+                tools:ignore="HardcodedText,NestedWeights,RtlSymmetry" />
+
+            <TextView
+                android:id="@+id/deltaText"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="Δ +0.06"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layout_iob_cob"
+            android:layout_width="250dp"
+            android:layout_height="30dp"
+            android:layout_marginBottom="5dp"
+            android:gravity="center|top"
+            android:orientation="horizontal"
+            tools:ignore="UselessParent">
+
+            <TextView
+                android:id="@+id/iobText"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="4"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="center_vertical|end"
+                android:maxLines="1"
+                android:paddingEnd="10dp"
+                android:text="💉 1.30U"
+                tools:ignore="HardcodedText,NestedWeights,RtlSymmetry" />
+
+            <TextView
+                android:id="@+id/cobText"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="🍔 31.2g"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layout_no_data"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:context=".MainActivity"
+            android:orientation="vertical"
+            android:gravity="center">
+            <TextView
+                android:id="@+id/txtLastValue"
+                android:layout_width="350dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="20dp"
+                android:layout_marginEnd="20dp"
+                android:text="@string/no_data"
+                android:textAlignment="center"
+                android:textSize="20sp" />
+            <Button
+                android:id="@+id/btnSources"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#005CCC"
+                android:layout_marginTop="20dp"
+                android:text="@string/menu_sources" />
+            <Button
+                android:id="@+id/btnHelp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#005CCC"
+                android:text="@string/menu_help" />
+            <TextView
+                android:id="@+id/txtHelp"
+                android:layout_width="350dp"
+                android:layout_height="wrap_content"
+                android:text="@string/source_help_summary"
+                android:textAlignment="center"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <de.michelinside.glucodatahandler.common.chart.GlucoseChart
+            android:id="@+id/chart"
+            android:layout_marginVertical="5dp"
+            android:layout_width="match_parent"
+            android:layout_height="280dp"
+            android:contentDescription="@string/graph"
+            />
+
+        <!-- Subtle divider line above trend section -->
+        <View
+            android:id="@+id/trendDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="#33FFFFFF"
+            android:visibility="gone" />
+
+        <!-- Trend Probability Section -->
+        <LinearLayout
+            android:id="@+id/layout_trend_probability"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="280dp"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:layout_marginHorizontal="5dp"
+            android:paddingHorizontal="4dp"
+            android:visibility="gone">
+
+            <!-- Horizon selector (fills width) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp">
+
+                <LinearLayout
+                    android:id="@+id/horizonSelector"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnHorizon5"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="32dp"
+                        android:minHeight="32dp"
+                        android:text="+5M"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:gravity="center"
+                        android:padding="0dp"
+                        android:includeFontPadding="false"
+                        android:background="@android:color/transparent"
+                        android:textColor="#1E90FF"
+                        tools:ignore="HardcodedText" />
+
+                    <Button
+                        android:id="@+id/btnHorizon10"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="32dp"
+                        android:minHeight="32dp"
+                        android:text="+10M"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:gravity="center"
+                        android:padding="0dp"
+                        android:includeFontPadding="false"
+                        android:background="@android:color/transparent"
+                        android:textColor="#1E90FF"
+                        tools:ignore="HardcodedText" />
+
+                    <Button
+                        android:id="@+id/btnHorizon15"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="32dp"
+                        android:minHeight="32dp"
+                        android:text="+15M"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:gravity="center"
+                        android:padding="0dp"
+                        android:includeFontPadding="false"
+                        android:background="@android:color/transparent"
+                        android:textColor="#1E90FF"
+                        tools:ignore="HardcodedText" />
+
+                    <Button
+                        android:id="@+id/btnHorizon20"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="32dp"
+                        android:minHeight="32dp"
+                        android:text="+20M"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:gravity="center"
+                        android:padding="0dp"
+                        android:includeFontPadding="false"
+                        android:background="@android:color/transparent"
+                        android:textColor="#1E90FF"
+                        tools:ignore="HardcodedText" />
+
+                    <Button
+                        android:id="@+id/btnHorizon25"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="32dp"
+                        android:minHeight="32dp"
+                        android:text="+25M"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:gravity="center"
+                        android:padding="0dp"
+                        android:includeFontPadding="false"
+                        android:background="@android:color/transparent"
+                        android:textColor="#1E90FF"
+                        tools:ignore="HardcodedText" />
+
+                    <Button
+                        android:id="@+id/btnHorizon30"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="32dp"
+                        android:minHeight="32dp"
+                        android:text="+30M"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        android:gravity="center"
+                        android:padding="0dp"
+                        android:includeFontPadding="false"
+                        android:background="@android:color/transparent"
+                        android:textColor="#1E90FF"
+                        tools:ignore="HardcodedText" />
+
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Trend probability bar chart (fills remaining space) -->
+            <de.michelinside.glucodatahandler.common.chart.TrendProbabilityChart
+                android:id="@+id/trendProbabilityChart"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Low probability indicator -->
+            <TextView
+                android:id="@+id/txtLowProbability"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:text="Risk of Low (&lt;70): —"
+                tools:ignore="HardcodedText" />
+
+        </LinearLayout>
+
+        <TableLayout
+            android:id="@+id/tableNotes"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/layout_bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:divider="?android:attr/dividerHorizontal"
+            android:showDividers="middle">
+
+            <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
+                tools:ignore="UselessParent">
+                <TextView
+                    android:textStyle="bold"
+                    android:textSize="20sp"
+                    android:layout_height="wrap_content"
+                    android:layout_width="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/info_label_notes"/>
+            </TableRow>
+        </TableLayout>
+
+        <!-- Subtle divider line above statistics section -->
+        <View
+            android:id="@+id/statisticsDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="#33FFFFFF" />
+
+        <!-- Statistics Section -->
+        <TableLayout
+            android:id="@+id/tableStatistics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:divider="?android:attr/dividerHorizontal"
+            android:showDividers="middle">
+
+            <TableRow android:background="@drawable/layout_table_header" android:padding="5dp"
+                tools:ignore="UselessParent" android:weightSum="2">
+                <TextView
+                    android:textStyle="bold"
+                    android:textSize="20sp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_width="wrap_content"
+                    android:gravity="center_vertical"
+                    android:text="@string/table_header_statistics"/>
+                <RadioGroup
+                    android:id="@+id/statGroup"
+                    android:textStyle="bold"
+                    android:textSize="20sp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:layout_width="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical|end">
+
+                    <RadioButton
+                        android:id="@+id/btnStat1d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:paddingEnd="10dp"
+                        android:text="1d"
+                        tools:ignore="HardcodedText,RtlSymmetry,TouchTargetSizeCheck" />
+
+                    <RadioButton
+                        android:id="@+id/btnStat7d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:checked="true"
+                        android:paddingEnd="10dp"
+                        android:text="7d"
+                        tools:ignore="HardcodedText,RtlSymmetry,TouchTargetSizeCheck" />
+
+                    <RadioButton
+                        android:id="@+id/btnStat14d"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:paddingEnd="10dp"
+                        android:text="14d"
+                        tools:ignore="HardcodedText,RtlSymmetry,TouchTargetSizeCheck" />
+                </RadioGroup>
+            </TableRow>
+        </TableLayout>
+
+    </LinearLayout>
+</ScrollView>
+

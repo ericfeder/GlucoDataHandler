@@ -8,7 +8,7 @@ import java.util.Locale
 import com.github.mikephil.charting.formatter.ValueFormatter
 
 class TimeValueFormatter(private val mChart: LineChart) : ValueFormatter() {
-    private val formatMinutes: SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.ENGLISH)
+    private val formatMinutes: SimpleDateFormat = SimpleDateFormat("h:mm a", Locale.ENGLISH)
     private val formatDays: SimpleDateFormat = SimpleDateFormat("MMM d", Locale.ENGLISH)
 
     private val c: Calendar = Calendar.getInstance()

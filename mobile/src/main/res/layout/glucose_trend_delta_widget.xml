@@ -47,10 +47,10 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="match_parent"
-                android:contentDescription="@string/trend"
-                android:src="@drawable/icon_question"
-                android:gravity="center_horizontal"
-                tools:ignore="NestedWeights" />
+            android:contentDescription="@string/trend"
+            android:src="@drawable/icon_question"
+            android:gravity="center_horizontal"
+            tools:ignore="NestedWeights" />
             <ImageView
                 android:id="@+id/modelTrendImage"
                 android:layout_width="0dp"

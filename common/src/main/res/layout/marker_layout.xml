@@ -49,4 +49,27 @@
         android:autoSizeTextType="uniform"
         tools:text="0.06 (12 min)" />
 
+    <!-- Prediction section -->
+    <TextView
+        android:id="@+id/prediction"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#64B5F6"
+        android:autoSizeMinTextSize="1sp"
+        android:autoSizeStepGranularity="1sp"
+        android:autoSizeTextType="uniform"
+        android:visibility="gone"
+        tools:text="Pred: 145" />
+
+    <TextView
+        android:id="@+id/prediction_interval"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#90CAF9"
+        android:autoSizeMinTextSize="1sp"
+        android:autoSizeStepGranularity="1sp"
+        android:autoSizeTextType="uniform"
+        android:visibility="gone"
+        tools:text="Range: 130-160" />
+
 </androidx.appcompat.widget.LinearLayoutCompat>

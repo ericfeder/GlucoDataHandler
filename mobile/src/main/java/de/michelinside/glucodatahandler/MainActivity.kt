@@ -63,6 +63,9 @@ import de.michelinside.glucodatahandler.common.notifier.NotifySource
 import de.michelinside.glucodatahandler.common.tasks.DexcomShareSourceTask
 import de.michelinside.glucodatahandler.common.ui.Dialogs
 import de.michelinside.glucodatahandler.common.prediction.PredictionData
+import de.michelinside.glucodatahandler.common.prediction.TcnPredictionService
+import de.michelinside.glucodatahandler.common.prediction.TrendCategory
+import de.michelinside.glucodatahandler.common.chart.TrendProbabilityChart
 import de.michelinside.glucodatahandler.common.utils.BitmapUtils
 import de.michelinside.glucodatahandler.common.utils.GlucoDataUtils
 import de.michelinside.glucodatahandler.common.utils.GlucoseStatistics
@@ -92,7 +95,6 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     private lateinit var cobText: TextView
     private lateinit var iobCobLayout: LinearLayout
     private lateinit var txtLastValue: TextView
-    private lateinit var txtVersion: TextView
     private lateinit var tableStatistics: TableLayout
     private lateinit var tableNotes: TableLayout
     private lateinit var btnSources: Button
@@ -104,6 +106,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     private lateinit var statGroup: RadioGroup
     private lateinit var btnStat1d: RadioButton
     private lateinit var btnStat7d: RadioButton
+    private var btnStat14d: RadioButton? = null
 
     private var layoutWithGraph: LinearLayout? = null
     private var layoutWithoutGraph: LinearLayout? = null
@@ -116,6 +119,18 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     private var doNotUpdate = false
     private lateinit var chartCreator: ChartCreator
     private var systemBars: Insets? = null
+    
+    // Trend probability chart
+    private var trendProbabilityChart: TrendProbabilityChart? = null
+    private var trendProbabilityLayout: LinearLayout? = null
+    private var trendDivider: View? = null
+    private var txtLowProbability: TextView? = null
+    private var selectedHorizon: Int = 15
+    private var horizonButtons: Map<Int, Button> = emptyMap()
+    
+    // Page initialization flags
+    private var mainPageInitialized = false
+    private var statisticsPageInitialized = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
@@ -127,28 +142,22 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             GlucoDataServiceMobile.start(this.applicationContext)
             PackageUtils.updatePackages(this.applicationContext)
 
-            txtBgValue = findViewById(R.id.txtBgValue)
-            viewIcon = findViewById(R.id.viewIcon)
-            modelViewIcon = findViewById(R.id.modelViewIcon)
-            timeText = findViewById(R.id.timeText)
-            deltaText = findViewById(R.id.deltaText)
-            iobText = findViewById(R.id.iobText)
-            cobText = findViewById(R.id.cobText)
-            iobCobLayout = findViewById(R.id.layout_iob_cob)
-            txtLastValue = findViewById(R.id.txtLastValue)
-            btnSources = findViewById(R.id.btnSources)
-            btnHelp = findViewById(R.id.btnHelp)
-            noDataLayout = findViewById(R.id.layout_no_data)
-            tableStatistics = findViewById(R.id.tableStatistics)
-            tableNotes = findViewById(R.id.tableNotes)
-            chart = findViewById(R.id.chart)
-            layoutWithGraph = findViewById(R.id.glucose_with_graph)
-            layoutWithoutGraph = findViewById(R.id.glucose_without_graph)
-            statGroup = findViewById(R.id.statGroup)
-            btnStat1d = findViewById(R.id.btnStat1d)
-            btnStat7d = findViewById(R.id.btnStat7d)
+            PreferenceManager.setDefaultValues(this, R.xml.preferences, false)
+            sharedPref = this.getSharedPreferences(Constants.SHARED_PREF_TAG, Context.MODE_PRIVATE)
+            ReceiveData.initData(this.applicationContext)
 
+            // Check if we're in landscape mode (uses old layout structure)
             expandCollapseView = findViewById(R.id.expandCollapseView)
+            val isLandscape = expandCollapseView != null
+
+            if (isLandscape) {
+                // Landscape mode - use the old layout structure directly
+                initLandscapeViews()
+            } else {
+                // Portrait mode - single scrollable layout
+                initPortraitViews()
+            }
+
             ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
                 systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
                 val fullscreen = expandCollapseView != null && BitmapUtils.isLandscapeOrientation(this) && sharedPref.getBoolean(Constants.SHARED_PREF_FULLSCREEN_LANDSCAPE, true)
@@ -161,17 +170,35 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                 insets
             }
 
-            PreferenceManager.setDefaultValues(this, R.xml.preferences, false)
-            sharedPref = this.getSharedPreferences(Constants.SHARED_PREF_TAG, Context.MODE_PRIVATE)
+            Dialogs.updateColorScheme(this)
 
-            ReceiveData.initData(this.applicationContext)
-
-            txtVersion = findViewById(R.id.txtVersion)
-            txtVersion.text = BuildConfig.VERSION_NAME
-            txtVersion.setOnClickListener {
-                Toast.makeText(GlucoDataService.context!!, "Build: ${BuildConfig.VERSION_CODE-1000}", Toast.LENGTH_SHORT).show()
-            }
-
+            if (requestPermission())
+                GlucoDataServiceMobile.start(this)
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "onCreate exception: " + exc.message.toString() )
+        }
+    }
+    
+    private fun initPortraitViews() {
+        try {
+            Log.d(LOG_ID, "Initializing portrait views")
+            
+            // Initialize main views
+            txtBgValue = findViewById(R.id.txtBgValue)
+            viewIcon = findViewById(R.id.viewIcon)
+            modelViewIcon = findViewById(R.id.modelViewIcon)
+            timeText = findViewById(R.id.timeText)
+            deltaText = findViewById(R.id.deltaText)
+            iobText = findViewById(R.id.iobText)
+            cobText = findViewById(R.id.cobText)
+            iobCobLayout = findViewById(R.id.layout_iob_cob)
+            txtLastValue = findViewById(R.id.txtLastValue)
+            btnSources = findViewById(R.id.btnSources)
+            btnHelp = findViewById(R.id.btnHelp)
+            noDataLayout = findViewById(R.id.layout_no_data)
+            tableNotes = findViewById(R.id.tableNotes)
+            chart = findViewById(R.id.chart)
+            
             btnSources.setOnClickListener{
                 try {
                     val intent = Intent(this, SettingsActivity::class.java)
@@ -193,50 +220,171 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     Log.e(LOG_ID, "btn help exception: " + exc.message.toString() )
                 }
             }
-
-            if(expandCollapseView!=null) {
-                expandCollapseView!!.setOnClickListener{
-                    toggleFullscreenLandMode()
-                }
-                if(sharedPref.getBoolean(Constants.SHARED_PREF_FULLSCREEN_LANDSCAPE, true))
-                    toggleFullscreenLandMode()
-            }
-
+            
+            // Initialize trend probability chart
+            trendDivider = findViewById(R.id.trendDivider)
+            trendProbabilityLayout = findViewById(R.id.layout_trend_probability)
+            trendProbabilityChart = findViewById(R.id.trendProbabilityChart)
+            txtLowProbability = findViewById(R.id.txtLowProbability)
+            
+            val mainContent: View = findViewById(R.id.mainContent)
+            initTrendProbabilityChart(mainContent)
+            
+            mainPageInitialized = true
+            
+            // Initialize statistics views (now in same layout)
+            tableStatistics = findViewById(R.id.tableStatistics)
+            statGroup = findViewById(R.id.statGroup)
+            btnStat1d = findViewById(R.id.btnStat1d)
+            btnStat7d = findViewById(R.id.btnStat7d)
+            btnStat14d = findViewById(R.id.btnStat14d)
+            
             btnStat1d.text = resources.getQuantityString(CR.plurals.duration_days_short, 1, 1)
             btnStat7d.text = resources.getQuantityString(CR.plurals.duration_days_short, 7, 7)
+            btnStat14d?.text = resources.getQuantityString(CR.plurals.duration_days_short, 14, 14)
 
-            if(sharedPref.getInt(Constants.SHARED_PREF_MAIN_STATISTICS_DAYS, 7) == 1) {
-                btnStat1d.isChecked = true
-            } else {
-                btnStat7d.isChecked = true
+            val savedDays = sharedPref.getInt(Constants.SHARED_PREF_MAIN_STATISTICS_DAYS, 7)
+            when (savedDays) {
+                1 -> btnStat1d.isChecked = true
+                14 -> btnStat14d?.isChecked = true
+                else -> btnStat7d.isChecked = true
             }
 
-            statGroup.setOnCheckedChangeListener { _, _ ->
-                Log.d(LOG_ID, "statGroup changed")
+            statGroup.setOnCheckedChangeListener { _, checkedId ->
+                Log.d(LOG_ID, "statGroup changed to $checkedId")
+                val days = when (checkedId) {
+                    R.id.btnStat1d -> 1
+                    R.id.btnStat14d -> 14
+                    else -> 7
+                }
                 with(sharedPref.edit()) {
-                    putInt(Constants.SHARED_PREF_MAIN_STATISTICS_DAYS, if(btnStat1d.isChecked) 1 else 7)
+                    putInt(Constants.SHARED_PREF_MAIN_STATISTICS_DAYS, days)
                     apply()
                 }
                 updateStatisticsTable()
             }
-
-
-            Dialogs.updateColorScheme(this)
-
-            if (requestPermission())
-                GlucoDataServiceMobile.start(this)
-            chartCreator = MainChartCreator(chart, this, Constants.SHARED_PREF_GRAPH_DURATION_PHONE_MAIN, Constants.SHARED_PREF_GRAPH_TRANSPARENCY_PHONE_MAIN)
-            chartCreator.create()
+            
+            statisticsPageInitialized = true
+            
+            // Delay chart creation until view is laid out
+            chart.post {
+                chartCreator = MainChartCreator(chart, this, Constants.SHARED_PREF_GRAPH_DURATION_PHONE_MAIN, Constants.SHARED_PREF_GRAPH_TRANSPARENCY_PHONE_MAIN)
+                chartCreator.onFuturePointSelected = { horizonMinutes ->
+                    // Update the distribution chart when a predicted point is clicked
+                    runOnUiThread {
+                        selectHorizon(horizonMinutes)
+                    }
+                }
+                chartCreator.create()
+                chartCreator.resume()
+                update()
+            }
         } catch (exc: Exception) {
-            Log.e(LOG_ID, "onCreate exception: " + exc.message.toString() )
+            Log.e(LOG_ID, "initPortraitViews exception: " + exc.message.toString())
         }
+    }
+    
+    private fun initLandscapeViews() {
+        // Original landscape initialization
+        txtBgValue = findViewById(R.id.txtBgValue)
+        viewIcon = findViewById(R.id.viewIcon)
+        modelViewIcon = findViewById(R.id.modelViewIcon)
+        timeText = findViewById(R.id.timeText)
+        deltaText = findViewById(R.id.deltaText)
+        iobText = findViewById(R.id.iobText)
+        cobText = findViewById(R.id.cobText)
+        iobCobLayout = findViewById(R.id.layout_iob_cob)
+        txtLastValue = findViewById(R.id.txtLastValue)
+        btnSources = findViewById(R.id.btnSources)
+        btnHelp = findViewById(R.id.btnHelp)
+        noDataLayout = findViewById(R.id.layout_no_data)
+        tableStatistics = findViewById(R.id.tableStatistics)
+        tableNotes = findViewById(R.id.tableNotes)
+        chart = findViewById(R.id.chart)
+        layoutWithGraph = findViewById(R.id.glucose_with_graph)
+        layoutWithoutGraph = findViewById(R.id.glucose_without_graph)
+        statGroup = findViewById(R.id.statGroup)
+        btnStat1d = findViewById(R.id.btnStat1d)
+        btnStat7d = findViewById(R.id.btnStat7d)
+
+        btnSources.setOnClickListener{
+            try {
+                val intent = Intent(this, SettingsActivity::class.java)
+                intent.putExtra(SettingsActivity.FRAGMENT_EXTRA, SettingsFragmentClass.SORUCE_FRAGMENT.value)
+                startActivity(intent)
+            } catch (exc: Exception) {
+                Log.e(LOG_ID, "btn source exception: " + exc.message.toString() )
+            }
+        }
+
+        btnHelp.setOnClickListener{
+            try {
+                val browserIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse(resources.getText(CR.string.help_link).toString())
+                )
+                startActivity(browserIntent)
+            } catch (exc: Exception) {
+                Log.e(LOG_ID, "btn help exception: " + exc.message.toString() )
+            }
+        }
+
+        if(expandCollapseView!=null) {
+            expandCollapseView!!.setOnClickListener{
+                toggleFullscreenLandMode()
+            }
+            if(sharedPref.getBoolean(Constants.SHARED_PREF_FULLSCREEN_LANDSCAPE, true))
+                toggleFullscreenLandMode()
+        }
+
+        btnStat1d.text = resources.getQuantityString(CR.plurals.duration_days_short, 1, 1)
+        btnStat7d.text = resources.getQuantityString(CR.plurals.duration_days_short, 7, 7)
+        
+        // btnStat14d may not exist in landscape layout
+        val btn14d: RadioButton? = findViewById(R.id.btnStat14d)
+        btn14d?.text = resources.getQuantityString(CR.plurals.duration_days_short, 14, 14)
+
+        val savedDays = sharedPref.getInt(Constants.SHARED_PREF_MAIN_STATISTICS_DAYS, 7)
+        when (savedDays) {
+            1 -> btnStat1d.isChecked = true
+            14 -> btn14d?.isChecked = true
+            else -> btnStat7d.isChecked = true
+        }
+
+        statGroup.setOnCheckedChangeListener { _, checkedId ->
+            Log.d(LOG_ID, "statGroup changed to $checkedId")
+            val days = when (checkedId) {
+                R.id.btnStat1d -> 1
+                R.id.btnStat14d -> 14
+                else -> 7
+            }
+            with(sharedPref.edit()) {
+                putInt(Constants.SHARED_PREF_MAIN_STATISTICS_DAYS, days)
+                apply()
+            }
+            updateStatisticsTable()
+        }
+        
+        chartCreator = MainChartCreator(chart, this, Constants.SHARED_PREF_GRAPH_DURATION_PHONE_MAIN, Constants.SHARED_PREF_GRAPH_TRANSPARENCY_PHONE_MAIN)
+        chartCreator.onFuturePointSelected = { horizonMinutes ->
+            // Update the distribution chart when a predicted point is clicked
+            runOnUiThread {
+                selectHorizon(horizonMinutes)
+            }
+        }
+        chartCreator.create()
+        
+        mainPageInitialized = true
+        statisticsPageInitialized = true
     }
 
     override fun onPause() {
         try {
             super.onPause()
             InternalNotifier.remNotifier(this, this)
-            chartCreator.pause()
+            if (::chartCreator.isInitialized) {
+                chartCreator.pause()
+            }
             Log.v(LOG_ID, "onPause called")
         } catch (exc: Exception) {
             Log.e(LOG_ID, "onPause exception: " + exc.message.toString() )
@@ -249,8 +397,11 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             Log.v(LOG_ID, "onResume called")
             GlucoDataService.checkServices(this.applicationContext)
             doNotUpdate = false
+            
             update()
-            chartCreator.resume()
+            if (::chartCreator.isInitialized) {
+                chartCreator.resume()
+            }
             InternalNotifier.addNotifier(this, this, mutableSetOf(
                 NotifySource.BROADCAST,
                 NotifySource.IOB_COB_CHANGE,
@@ -282,7 +433,9 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     override fun onDestroy() {
         Log.v(LOG_ID, "onDestroy called")
         super.onDestroy()
-        chartCreator.close()
+        if (::chartCreator.isInitialized) {
+            chartCreator.close()
+        }
     }
 
     private val requestPermissionLauncher =
@@ -636,8 +789,8 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     @SuppressLint("SetTextI18n")
     private fun update() {
         try {
-            Log.v(LOG_ID, "update values - doNotUpdate=$doNotUpdate")
-            if(doNotUpdate)
+            Log.v(LOG_ID, "update values - doNotUpdate=$doNotUpdate mainPageInitialized=$mainPageInitialized")
+            if(doNotUpdate || !mainPageInitialized)
                 return
             updateLandscapeItems()
             txtBgValue.text = ReceiveData.getGlucoseAsString()
@@ -685,6 +838,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             //chartHandler.update()
             updateNotesTable()
             updateStatisticsTable()
+            updateTrendProbabilityChart()
 
             updateAlarmIcon()
             updateMenuItems()
@@ -699,6 +853,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     }
 
     private fun updateNotesTable() {
+        if (!mainPageInitialized || !::tableNotes.isInitialized) return
         tableNotes.removeViews(1, maxOf(0, tableNotes.childCount - 1))
         if (!Channels.notificationChannelActive(this, ChannelType.MOBILE_FOREGROUND)) {
             val onClickListener = OnClickListener {
@@ -774,13 +929,18 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     }
 
     private fun updateStatisticsTable() {
+        if (!statisticsPageInitialized || !::tableStatistics.isInitialized) return
         tableStatistics.removeViews(1, maxOf(0, tableStatistics.childCount - 1))
         val standardStats = sharedPref.getBoolean(Constants.SHARED_PREF_STANDARD_STATISTICS, false)
         GlucoseStatistics.update(standardStats)
         if(GlucoseStatistics.hasStatistics) {
-            val statData = if(btnStat1d.isChecked) GlucoseStatistics.statData1d else GlucoseStatistics.statData7d
+            val statData = when {
+                btnStat1d.isChecked -> GlucoseStatistics.statData1d
+                btnStat14d?.isChecked == true -> GlucoseStatistics.statData14d
+                else -> GlucoseStatistics.statData7d
+            }
             Log.d(LOG_ID, "Create statistics for ${statData.days}d with ${statData.count} data points - hasData: ${statData.hasData}")
-            val name = if(btnStat1d.isChecked) resources.getString(CR.string.info_label_average) else resources.getString(CR.string.info_label_average) + " ⌀"
+            val name = resources.getString(CR.string.info_label_average)
             tableStatistics.addView(createRow(name, GlucoDataUtils.getDisplayGlucoseAsString(statData.averageGlucose, true)))
             if(statData.hasData) {
                 tableStatistics.addView(createProgressBarRow(GlucoseStatistics.getStatisticsTitle(this, AlarmType.VERY_HIGH, standardStats), statData.percentVeryHigh, ReceiveData.getAlarmTypeColor(AlarmType.VERY_HIGH)))
@@ -923,7 +1083,9 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     if(Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM && systemBars!=null)
                         view?.setPadding(systemBars!!.left, systemBars!!.top, systemBars!!.right, systemBars!!.bottom)
                 }
-                chart.moveViewToX(chart.xChartMax)
+                if (::chart.isInitialized) {
+                    chart.moveViewToX(chart.xChartMax)
+                }
                 with(sharedPref.edit()) {
                     Log.d(LOG_ID, "save fullscreen mode: $fullscreen")
                     putBoolean(Constants.SHARED_PREF_FULLSCREEN_LANDSCAPE, fullscreen)
@@ -932,6 +1094,149 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             }
         } catch (exc: Exception) {
             Log.e(LOG_ID, "toggleFullscreenLandMode exception: " + exc.message.toString() )
+        }
+    }
+
+    private fun initTrendProbabilityChart(view: View) {
+        try {
+            // Initialize horizon buttons
+            val btn5 = view.findViewById<Button>(R.id.btnHorizon5)
+            val btn10 = view.findViewById<Button>(R.id.btnHorizon10)
+            val btn15 = view.findViewById<Button>(R.id.btnHorizon15)
+            val btn20 = view.findViewById<Button>(R.id.btnHorizon20)
+            val btn25 = view.findViewById<Button>(R.id.btnHorizon25)
+            val btn30 = view.findViewById<Button>(R.id.btnHorizon30)
+            
+            horizonButtons = mapOf(
+                5 to btn5,
+                10 to btn10,
+                15 to btn15,
+                20 to btn20,
+                25 to btn25,
+                30 to btn30
+            )
+            
+            // Set click listeners
+            for ((horizon, button) in horizonButtons) {
+                button.setOnClickListener {
+                    selectHorizon(horizon)
+                }
+            }
+            
+            // Initialize the TCN prediction service
+            TcnPredictionService.init(this)
+            
+            // Select default horizon (this will call updateTrendProbabilityChart)
+            selectHorizon(15)
+            
+            // Always show the section - we have test data as fallback
+            trendDivider?.visibility = View.VISIBLE
+            trendProbabilityLayout?.visibility = View.VISIBLE
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "initTrendProbabilityChart exception: ${exc.message}")
+        }
+    }
+    
+    private fun selectHorizon(horizon: Int) {
+        try {
+            selectedHorizon = horizon
+            
+            // Update button styles
+            for ((h, button) in horizonButtons) {
+                if (h == horizon) {
+                    // Selected style - blue bubble background with white text
+                    button.background = ContextCompat.getDrawable(this, R.drawable.button_selected)
+                    button.setTextColor(android.graphics.Color.WHITE)
+                    button.alpha = 1.0f
+                } else {
+                    // Unselected style - transparent background with blue text
+                    button.background = null
+                    button.setTextColor(android.graphics.Color.rgb(30, 144, 255))
+                    button.alpha = 0.8f
+                }
+            }
+            
+            // Update the trend probability chart
+            updateTrendProbabilityChart()
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "selectHorizon exception: ${exc.message}")
+        }
+    }
+    
+    private fun updateTrendProbabilityChart() {
+        try {
+            if (trendProbabilityChart == null) {
+                return
+            }
+            
+            var probabilities = TcnPredictionService.getTrendProbabilities(this, selectedHorizon)
+            val isTestData: Boolean
+            
+            // If no real data, use test probabilities to verify chart works
+            if (probabilities == null) {
+                Log.w(LOG_ID, "No real predictions - using TEST data for horizon $selectedHorizon")
+                probabilities = TcnPredictionService.getTestProbabilities(selectedHorizon)
+                isTestData = true
+            } else {
+                isTestData = false
+            }
+            
+            val probSum = probabilities.probabilities.values.sum()
+            Log.i(LOG_ID, "Trend probs for ${selectedHorizon}min: " +
+                    "⬇⬇=${(probabilities.getProbability(TrendCategory.DOUBLE_DOWN)*100).toInt()}%, " +
+                    "↓=${(probabilities.getProbability(TrendCategory.DOWN)*100).toInt()}%, " +
+                    "↘=${(probabilities.getProbability(TrendCategory.SLIGHTLY_DOWN)*100).toInt()}%, " +
+                    "→=${(probabilities.getProbability(TrendCategory.FLAT)*100).toInt()}%, " +
+                    "↗=${(probabilities.getProbability(TrendCategory.SLIGHTLY_UP)*100).toInt()}%, " +
+                    "↑=${(probabilities.getProbability(TrendCategory.UP)*100).toInt()}%, " +
+                    "⬆⬆=${(probabilities.getProbability(TrendCategory.DOUBLE_UP)*100).toInt()}% " +
+                    "(sum=$probSum, test=$isTestData)")
+            
+            // Update the chart with current glucose for projected values
+            trendProbabilityChart?.setTrendProbabilities(probabilities, ReceiveData.rawValue)
+            
+            // Update low probability text
+            updateLowProbability(isTestData)
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "updateTrendProbabilityChart exception: ${exc.message}")
+        }
+    }
+    
+    private fun updateLowProbability(isTestData: Boolean) {
+        try {
+            val currentGlucose = ReceiveData.rawValue
+            if (currentGlucose <= 0) {
+                txtLowProbability?.text = "Risk of Low (<70): —"
+                return
+            }
+            
+            val lowProb = if (isTestData) {
+                TcnPredictionService.getTestLowProbability(currentGlucose)
+            } else {
+                TcnPredictionService.getLowProbability(this, selectedHorizon, currentGlucose) 
+                    ?: TcnPredictionService.getTestLowProbability(currentGlucose)
+            }
+            
+            val percentText = when {
+                lowProb < 0.01f -> "<1%"
+                else -> "${(lowProb * 100).toInt()}%"
+            }
+            
+            // Color code based on risk level
+            val color = when {
+                lowProb >= 0.40f -> android.graphics.Color.RED                  // Red for very high risk (>=40%)
+                lowProb >= 0.20f -> android.graphics.Color.rgb(255, 165, 0)     // Orange for high risk (20-40%)
+                lowProb >= 0.10f -> android.graphics.Color.YELLOW               // Yellow for medium risk (10-20%)
+                else -> android.graphics.Color.WHITE                            // White for low risk (<10%)
+            }
+            
+            txtLowProbability?.text = "Risk of Low (<70): $percentText"
+            txtLowProbability?.setTextColor(color)
+            
+            // Bold text for very high risk (>=40%)
+            txtLowProbability?.setTypeface(null, if (lowProb >= 0.40f) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "updateLowProbability exception: ${exc.message}")
         }
     }
 
