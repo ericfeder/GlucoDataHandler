@@ -649,6 +649,15 @@
     <string name="falling_fast_alarm_notification_name">Falling fast alarm</string>
     <string name="alarm_falling_fast_summary">Alarm if the glucose value is lower or equal to %1$s and the delta falls by at least -%2$s for %3$d consecutive readings.</string>
     <string name="falling_fast_alarm_text">Falling fast!</string>
+
+    <string name="alarm_sustained_high">Sustained high</string>
+    <string name="sustained_high_alarm_notification_name">Sustained high alarm</string>
+    <string name="alarm_sustained_high_summary">Alarm if the glucose value remains above %1$s for more than %2$d minutes.</string>
+    <string name="sustained_high_alarm_text">Sustained high!</string>
+    <string name="alarm_sustained_high_threshold">Threshold</string>
+    <string name="alarm_sustained_high_threshold_summary">Glucose threshold above which sustained high is detected.</string>
+    <string name="alarm_sustained_high_duration">Duration</string>
+    <string name="alarm_sustained_high_duration_summary">How long glucose must remain above threshold before alarm triggers.</string>
     <string name="alarm_vibrate_amplitude">Vibration Intensity</string>
     <string name="alarm_vibrate_amplitude_summary">Intensity of the vibration</string>
     <string name="pref_cat_alarm_settings">Alarm settings</string>

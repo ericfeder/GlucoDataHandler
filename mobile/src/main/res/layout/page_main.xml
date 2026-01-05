@@ -39,15 +39,7 @@
                 android:textStyle="bold"
                 tools:ignore="HardcodedText" />
 
-            <ImageView
-                android:id="@+id/viewIcon"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="2"
-                android:paddingVertical="2dp"
-                android:src="@drawable/icon_question"
-                tools:ignore="ContentDescription" />
-
+            <!-- ML prediction arrow only at top -->
             <ImageView
                 android:id="@+id/modelViewIcon"
                 android:layout_width="0dp"
@@ -317,17 +309,25 @@
                 android:layout_height="0dp"
                 android:layout_weight="1" />
 
-            <!-- Low probability indicator -->
-            <TextView
-                android:id="@+id/txtLowProbability"
+            <!-- Zone probability pills -->
+            <HorizontalScrollView
+                android:id="@+id/probabilityPillsScroll"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:gravity="center"
-                android:textSize="16sp"
-                android:textColor="#FFFFFF"
-                android:text="Risk of Low (&lt;70): —"
-                tools:ignore="HardcodedText" />
+                android:scrollbars="none"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/probabilityPillsContainer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:paddingHorizontal="8dp" />
+
+            </HorizontalScrollView>
 
         </LinearLayout>
 

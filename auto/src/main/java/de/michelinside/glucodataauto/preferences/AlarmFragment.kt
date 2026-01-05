@@ -11,6 +11,7 @@ import de.michelinside.glucodatahandler.common.Constants
 import de.michelinside.glucodatahandler.common.ReceiveData
 import de.michelinside.glucodatahandler.common.notification.AlarmHandler
 import de.michelinside.glucodatahandler.common.notification.AlarmType
+import de.michelinside.glucodatahandler.common.notification.SustainedHighAlarmSetting
 import de.michelinside.glucodatahandler.common.notifier.InternalNotifier
 import de.michelinside.glucodatahandler.common.notifier.NotifySource
 import de.michelinside.glucodatahandler.common.preferences.PreferenceFragmentCompatBase
@@ -79,6 +80,7 @@ class AlarmFragment : PreferenceFragmentCompatBase() {
             updateAlarmCat(Constants.SHARED_PREF_ALARM_OBSOLETE)
             updateAlarmCat(Constants.SHARED_PREF_ALARM_RISING_FAST)
             updateAlarmCat(Constants.SHARED_PREF_ALARM_FALLING_FAST)
+            updateAlarmCat(Constants.SHARED_PREF_ALARM_SUSTAINED_HIGH)
         } catch (exc: Exception) {
             Log.e(LOG_ID, "onPause exception: " + exc.toString())
         }
@@ -107,6 +109,7 @@ class AlarmFragment : PreferenceFragmentCompatBase() {
             AlarmType.OBSOLETE -> resources.getString(CR.string.alarm_obsolete_summary, getBorderText(alarmType))
             AlarmType.RISING_FAST,
             AlarmType.FALLING_FAST -> getAlarmDeltaSummary(alarmType)
+            AlarmType.SUSTAINED_HIGH -> getAlarmSustainedHighSummary()
             else -> ""
         }
     }
@@ -154,6 +157,14 @@ class AlarmFragment : PreferenceFragmentCompatBase() {
         }
         val deltaString = delta.toString() + unit
         return resources.getString(resId, borderString, deltaString, alarmType.setting!!.deltaCount)
+    }
+
+    private fun getAlarmSustainedHighSummary(): String {
+        val setting = AlarmType.SUSTAINED_HIGH.setting as? SustainedHighAlarmSetting ?: return ""
+        val unit = " " + ReceiveData.getUnit()
+        val threshold = if(ReceiveData.isMmol) GlucoDataUtils.mgToMmol(setting.threshold) else setting.threshold
+        val thresholdString = (if(ReceiveData.isMmol) threshold.toString() else threshold.toInt().toString()) + unit
+        return resources.getString(CR.string.alarm_sustained_high_summary, thresholdString, setting.durationMinutes)
     }
 
 }

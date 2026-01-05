@@ -291,6 +291,8 @@ object Constants {
     const val SHARED_PREF_ALARM_SUFFIX_DELTA = "_delta"
     const val SHARED_PREF_ALARM_SUFFIX_OCCURRENCE_COUNT = "_occurrence_count"
     const val SHARED_PREF_ALARM_SUFFIX_BORDER = "_border"
+    const val SHARED_PREF_ALARM_SUFFIX_THRESHOLD = "_threshold"
+    const val SHARED_PREF_ALARM_SUFFIX_DURATION = "_duration"
 
     const val SHARED_PREF_ALARM_VERY_LOW = "alarm_very_low"
     const val SHARED_PREF_ALARM_LOW = "alarm_low"
@@ -299,6 +301,7 @@ object Constants {
     const val SHARED_PREF_ALARM_OBSOLETE = "alarm_obsolete"
     const val SHARED_PREF_ALARM_RISING_FAST = "alarm_rising_fast"
     const val SHARED_PREF_ALARM_FALLING_FAST = "alarm_falling_fast"
+    const val SHARED_PREF_ALARM_SUSTAINED_HIGH = "alarm_sustained_high"
 
     const val SHARED_PREF_ALARM_TYPE_SETTINGS_CAT = "cat_alarm_settings"
 
@@ -348,7 +351,7 @@ object Constants {
     // database
     const val DB_MAX_DATA_WEAR_DAYS = 1 // 24h
     const val DB_MAX_DATA_WEAR_TIME_MS = (DB_MAX_DATA_WEAR_DAYS*24*60*60*1000)
-    const val DB_MAX_DATA_DAYS = 7 // 7 days
+    const val DB_MAX_DATA_DAYS = 14 // 14 days (needed for 14d statistics)
     const val DB_MAX_DATA_TIME_MS = (DB_MAX_DATA_DAYS*24*60*60*1000)
     const val DB_MAX_DATA_GDA_TIME_MS = (4*60*60*1000)  // max 4 hours
     const val SHARED_PREF_RESET_DATABASE = "reset_db"

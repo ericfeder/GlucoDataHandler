@@ -45,6 +45,7 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
     private val OBSOLETE_NOTIFICATION_ID = 805
     private val FALLING_FAST_NOTIFICATION_ID = 806
     private val RISING_FAST_NOTIFICATION_ID = 807
+    private val SUSTAINED_HIGH_NOTIFICATION_ID = 808
     lateinit var audioManager:AudioManager
     protected var curNotification = 0
     private var curAlarmTime = 0L
@@ -95,6 +96,7 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
                 AlarmType.OBSOLETE -> CR.string.obsolete_alarm_text
                 AlarmType.RISING_FAST -> CR.string.rising_fast_alarm_text
                 AlarmType.FALLING_FAST -> CR.string.falling_fast_alarm_text
+                AlarmType.SUSTAINED_HIGH -> CR.string.sustained_high_alarm_text
                 else -> null
             }
         }
@@ -155,6 +157,7 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
         filter.add(NotifySource.ALARM_TRIGGER)
         filter.add(NotifySource.OBSOLETE_ALARM_TRIGGER)
         filter.add(NotifySource.DELTA_ALARM_TRIGGER)
+        filter.add(NotifySource.SUSTAINED_HIGH_ALARM_TRIGGER)
         filter.addAll(getNotifierFilter())
         InternalNotifier.addNotifier(context, this, filter)
     }
@@ -767,6 +770,7 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
             AlarmType.OBSOLETE -> OBSOLETE_NOTIFICATION_ID
             AlarmType.RISING_FAST -> RISING_FAST_NOTIFICATION_ID
             AlarmType.FALLING_FAST -> FALLING_FAST_NOTIFICATION_ID
+            AlarmType.SUSTAINED_HIGH -> SUSTAINED_HIGH_NOTIFICATION_ID
             else -> -1
         }
     }
@@ -780,6 +784,7 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
             OBSOLETE_NOTIFICATION_ID -> AlarmType.OBSOLETE
             RISING_FAST_NOTIFICATION_ID -> AlarmType.RISING_FAST
             FALLING_FAST_NOTIFICATION_ID -> AlarmType.FALLING_FAST
+            SUSTAINED_HIGH_NOTIFICATION_ID -> AlarmType.SUSTAINED_HIGH
             else -> AlarmType.NONE
         }
     }
@@ -801,6 +806,7 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
             AlarmType.OBSOLETE -> CR.raw.gdh_obsolete_alarm
             AlarmType.RISING_FAST -> CR.raw.gdh_rising_fast_alarm
             AlarmType.FALLING_FAST -> CR.raw.gdh_falling_fast_alarm
+            AlarmType.SUSTAINED_HIGH -> CR.raw.gdh_sustained_high_alarm
             else -> null
         }
     }
@@ -946,6 +952,10 @@ abstract class AlarmNotificationBase: NotifierInterface, SharedPreferences.OnSha
                         if(alarmType != AlarmType.NONE)
                             triggerNotification(alarmType, context)
                     }
+                }
+                NotifySource.SUSTAINED_HIGH_ALARM_TRIGGER -> {
+                    Log.i(LOG_ID, "Sustained high alarm trigger")
+                    triggerNotification(AlarmType.SUSTAINED_HIGH, context)
                 }
                 NotifySource.ALARM_STATE_CHANGED -> {
                     if (getAlarmState(context) != AlarmState.ACTIVE) {

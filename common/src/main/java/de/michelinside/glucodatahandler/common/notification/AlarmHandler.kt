@@ -13,6 +13,7 @@ import de.michelinside.glucodatahandler.common.Command
 import de.michelinside.glucodatahandler.common.Constants
 import de.michelinside.glucodatahandler.common.GlucoDataService
 import de.michelinside.glucodatahandler.common.ReceiveData
+import de.michelinside.glucodatahandler.common.database.dbAccess
 import de.michelinside.glucodatahandler.common.notification.AlarmSetting.Companion.defaultWeekdays
 import de.michelinside.glucodatahandler.common.notifier.InternalNotifier
 import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
@@ -34,11 +35,13 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
     private const val LAST_ALARM_TIME = "last_alarm_time"
     private const val LAST_FALLING_ALARM_TIME = "last_falling_alarm_time"
     private const val LAST_RISING_ALARM_TIME = "last_rising_alarm_time"
+    private const val LAST_SUSTAINED_HIGH_ALARM_TIME = "last_sustained_high_alarm_time"
     const val SNOOZE_TIME = "snooze_time"
 
     private var lastAlarmTime = 0L
     private var lastFallingAlarmTime = 0L
     private var lastRisingAlarmTime = 0L
+    private var lastSustainedHighAlarmTime = 0L
     private var lastAlarmType = AlarmType.OK
     private var initialized = false
     private var snoozeTime = 0L
@@ -151,6 +154,8 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
             lastFallingAlarmTime = ReceiveData.time
         } else if (alarmType == AlarmType.RISING_FAST) {
             lastRisingAlarmTime = ReceiveData.time
+        } else if (alarmType == AlarmType.SUSTAINED_HIGH) {
+            lastSustainedHighAlarmTime = ReceiveData.time
         }
         saveExtras()
     }
@@ -243,6 +248,68 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
         return result
     }
 
+    /**
+     * Check if sustained high alarm should trigger.
+     * Triggers when glucose has been above threshold for the configured duration.
+     */
+    fun checkSustainedHighAlarmTrigger(): Boolean {
+        val setting = AlarmType.SUSTAINED_HIGH.setting as? SustainedHighAlarmSetting ?: return false
+        
+        if (!setting.isActive) {
+            return false
+        }
+        
+        if (isInactive(AlarmType.SUSTAINED_HIGH)) {
+            return false
+        }
+        
+        // Check if enough time has passed since last alarm
+        if (ReceiveData.time - lastSustainedHighAlarmTime < setting.intervalMS) {
+            Log.d(LOG_ID, "Sustained high: too soon since last alarm")
+            return false
+        }
+        
+        // Current glucose must be above threshold
+        if (ReceiveData.rawValue < setting.threshold) {
+            Log.d(LOG_ID, "Sustained high: current value ${ReceiveData.rawValue} below threshold ${setting.threshold}")
+            return false
+        }
+        
+        // Query historical values for the duration period
+        val durationMs = setting.durationMinutes * 60 * 1000L
+        val minTime = ReceiveData.time - durationMs
+        
+        if (!dbAccess.active) {
+            Log.w(LOG_ID, "Sustained high: database not active")
+            return false
+        }
+        
+        val historicalValues = dbAccess.getGlucoseValuesInRange(minTime, ReceiveData.time)
+        
+        // Need at least some readings to confirm sustained high
+        // Expect roughly 1 reading per 5 minutes
+        val expectedMinReadings = (setting.durationMinutes / 5) - 2  // Allow some tolerance
+        if (historicalValues.size < expectedMinReadings) {
+            Log.d(LOG_ID, "Sustained high: insufficient data (${historicalValues.size} readings, need $expectedMinReadings)")
+            return false
+        }
+        
+        // Check if ALL readings are above threshold
+        val allAboveThreshold = historicalValues.all { it.value >= setting.threshold }
+        
+        Log.d(LOG_ID, "Sustained high check: threshold=${setting.threshold}, duration=${setting.durationMinutes}min, " +
+                "readings=${historicalValues.size}, allAbove=$allAboveThreshold, " +
+                "min=${historicalValues.minOfOrNull { it.value }}, max=${historicalValues.maxOfOrNull { it.value }}")
+        
+        if (allAboveThreshold) {
+            Log.i(LOG_ID, "Trigger sustained high alarm: glucose above ${setting.threshold} for ${setting.durationMinutes} minutes")
+            setLastAlarm(AlarmType.SUSTAINED_HIGH)
+            return true
+        }
+        
+        return false
+    }
+
     private fun saveExtras() {
         try {
             Log.d(LOG_ID, "Saving extras")
@@ -254,12 +321,14 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
                     " - lastAlarmTime=${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(lastAlarmTime))}" +
                     " - lastFallingAlarmTime=${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(lastFallingAlarmTime))}" +
                     " - lastRisingAlarmTime=${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(lastRisingAlarmTime))}" +
+                    " - lastSustainedHighAlarmTime=${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(lastSustainedHighAlarmTime))}" +
                     " - snoozeTime=${snoozeTimestamp}"
             )
             with(sharedExtraPref.edit()) {
                 putLong(LAST_ALARM_TIME, lastAlarmTime)
                 putLong(LAST_FALLING_ALARM_TIME, lastFallingAlarmTime)
                 putLong(LAST_RISING_ALARM_TIME, lastRisingAlarmTime)
+                putLong(LAST_SUSTAINED_HIGH_ALARM_TIME, lastSustainedHighAlarmTime)
                 putInt(LAST_ALARM_INDEX, lastAlarmType.ordinal)
                 putLong(SNOOZE_TIME, snoozeTime)
                 apply()
@@ -276,6 +345,7 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
             lastAlarmTime = sharedExtraPref.getLong(LAST_ALARM_TIME, 0L)
             lastFallingAlarmTime = sharedExtraPref.getLong(LAST_FALLING_ALARM_TIME, 0L)
             lastRisingAlarmTime = sharedExtraPref.getLong(LAST_RISING_ALARM_TIME, 0L)
+            lastSustainedHighAlarmTime = sharedExtraPref.getLong(LAST_SUSTAINED_HIGH_ALARM_TIME, 0L)
             snoozeTime = sharedExtraPref.getLong(SNOOZE_TIME, 0L)
         } catch (exc: Exception) {
             Log.e(LOG_ID, "Loading receivers exception: " + exc.toString() + "\n" + exc.stackTraceToString() )
@@ -307,6 +377,7 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
         bundle.putLong(LAST_ALARM_TIME, lastAlarmTime)
         bundle.putLong(LAST_FALLING_ALARM_TIME, lastFallingAlarmTime)
         bundle.putLong(LAST_RISING_ALARM_TIME, lastRisingAlarmTime)
+        bundle.putLong(LAST_SUSTAINED_HIGH_ALARM_TIME, lastSustainedHighAlarmTime)
         bundle.putInt(LAST_ALARM_INDEX, lastAlarmType.ordinal)
         return bundle
     }
@@ -328,6 +399,10 @@ object AlarmHandler: SharedPreferences.OnSharedPreferenceChangeListener, Notifie
             }
             if(bundle.getLong(LAST_RISING_ALARM_TIME, lastRisingAlarmTime) > lastRisingAlarmTime) {
                 lastRisingAlarmTime = bundle.getLong(LAST_RISING_ALARM_TIME, lastRisingAlarmTime)
+                extrasChanged = true
+            }
+            if(bundle.getLong(LAST_SUSTAINED_HIGH_ALARM_TIME, lastSustainedHighAlarmTime) > lastSustainedHighAlarmTime) {
+                lastSustainedHighAlarmTime = bundle.getLong(LAST_SUSTAINED_HIGH_ALARM_TIME, lastSustainedHighAlarmTime)
                 extrasChanged = true
             }
         }

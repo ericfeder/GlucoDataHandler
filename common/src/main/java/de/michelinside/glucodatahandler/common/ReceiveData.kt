@@ -176,6 +176,13 @@ object ReceiveData: SharedPreferences.OnSharedPreferenceChangeListener {
     private var colorOutOfRange: Int = Color.YELLOW
     private var colorOK: Int = Color.GREEN
     private var colorObsolete: Int = Color.GRAY
+    
+    // Distinct zone colors for the new 5-zone color scheme
+    val colorVeryLow: Int = Color.rgb(139, 0, 0)       // Dark Red
+    val colorLow: Int = Color.rgb(244, 67, 54)          // Red
+    val colorInRange: Int = Color.rgb(76, 175, 80)      // Green
+    val colorHigh: Int = Color.rgb(255, 235, 59)        // Yellow
+    val colorVeryHigh: Int = Color.rgb(255, 152, 0)     // Orange
     private var obsoleteTimeMin: Int = 6
     val obsoleteTimeInMinute get() = obsoleteTimeMin
     private var initialized = false
@@ -534,13 +541,13 @@ object ReceiveData: SharedPreferences.OnSharedPreferenceChangeListener {
     fun getAlarmTypeColor(alarmType: AlarmType): Int {
         return when(alarmType) {
             AlarmType.NONE -> Color.GRAY
-            AlarmType.VERY_LOW -> colorAlarm
-            AlarmType.LOW -> colorOutOfRange
-            AlarmType.OK -> colorOK
-            AlarmType.HIGH -> colorOutOfRange
-            AlarmType.VERY_HIGH -> colorAlarm
+            AlarmType.VERY_LOW -> colorVeryLow      // Dark Red
+            AlarmType.LOW -> colorLow                // Red
+            AlarmType.OK -> colorInRange             // Green
+            AlarmType.HIGH -> colorHigh              // Yellow
+            AlarmType.VERY_HIGH -> colorVeryHigh     // Orange
             AlarmType.OBSOLETE -> colorObsolete
-            else -> colorOK
+            else -> colorInRange
         }
     }
 
@@ -690,6 +697,11 @@ object ReceiveData: SharedPreferences.OnSharedPreferenceChangeListener {
                     }
 
                     dbAccess.addGlucoseValue(time, getDbValue())
+                    
+                    // Check for sustained high alarm (needs db access for historical data)
+                    if(!interApp && AlarmHandler.checkSustainedHighAlarmTrigger()) {
+                        InternalNotifier.notify(context, NotifySource.SUSTAINED_HIGH_ALARM_TRIGGER, null)
+                    }
 
                     val notifySource = if(interApp) NotifySource.MESSAGECLIENT else NotifySource.BROADCAST
 

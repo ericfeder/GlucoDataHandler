@@ -82,6 +82,25 @@
                     android:title="@string/pref_alarm_rising_falling_border"
                     android:summary="@string/pref_alarm_rising_falling_border_summary"
                     app:iconSpaceReserved="false" />
+                <de.michelinside.glucodatahandler.common.ui.GlucoseEditPreference
+                    android:defaultValue="200"
+                    android:inputType="numberDecimal"
+                    android:key="_threshold"
+                    android:selectAllOnFocus="true"
+                    android:singleLine="true"
+                    android:title="@string/alarm_sustained_high_threshold"
+                    android:summary="@string/alarm_sustained_high_threshold_summary"
+                    app:iconSpaceReserved="false" />
+                <androidx.preference.SeekBarPreference
+                    app:showSeekBarValue="true"
+                    app:seekBarIncrement="5"
+                    app:min="30"
+                    android:max="300"
+                    android:defaultValue="150"
+                    android:key="_duration"
+                    android:title="@string/alarm_sustained_high_duration"
+                    android:summary="@string/alarm_sustained_high_duration_summary"
+                    app:iconSpaceReserved="false" />
         </PreferenceCategory>
         <PreferenceCategory
             android:key="cat_alarm_sound"

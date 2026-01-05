@@ -81,5 +81,14 @@
                 android:name="type"
                 android:value="8" />
         </Preference>
+        <Preference
+            android:key="alarm_sustained_high"
+            android:title="@string/sustained_high_alarm_notification_name"
+            app:fragment="de.michelinside.glucodataauto.preferences.AlarmTypeFragment"
+            app:iconSpaceReserved="false">
+            <extra
+                android:name="type"
+                android:value="9" />
+        </Preference>
     </PreferenceCategory>
 </PreferenceScreen>

@@ -25,6 +25,7 @@ import de.michelinside.glucodatahandler.common.Constants
 import de.michelinside.glucodatahandler.common.notification.AlarmHandler
 import de.michelinside.glucodatahandler.common.notification.AlarmSetting
 import de.michelinside.glucodatahandler.common.notification.AlarmType
+import de.michelinside.glucodatahandler.common.notification.SustainedHighAlarmSetting
 import de.michelinside.glucodatahandler.common.notification.Vibrator
 import de.michelinside.glucodatahandler.common.notifier.InternalNotifier
 import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
@@ -100,6 +101,12 @@ class AlarmTypeFragment : SettingsFragmentCompatBase(), SharedPreferences.OnShar
     }
     private val borderPref: String get() {
         return getPrefKey(Constants.SHARED_PREF_ALARM_SUFFIX_BORDER)
+    }
+    private val thresholdPref: String get() {
+        return getPrefKey(Constants.SHARED_PREF_ALARM_SUFFIX_THRESHOLD)
+    }
+    private val durationPref: String get() {
+        return getPrefKey(Constants.SHARED_PREF_ALARM_SUFFIX_DURATION)
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -301,20 +308,48 @@ class AlarmTypeFragment : SettingsFragmentCompatBase(), SharedPreferences.OnShar
         prefWeekdays.entryValues = DayOfWeek.entries.map { it.value.toString() }.toTypedArray()
         prefWeekdays.values = preferenceManager.sharedPreferences!!.getStringSet(prefWeekdays.key, AlarmSetting.defaultWeekdays)!!
 
+        // Delta alarm settings (Rising/Falling fast)
+        val prefDelta = findPreference<GlucoseEditPreference>(deltaPref)
+        val prefOccurrenceCount = findPreference<SeekBarPreference>(occurrenceCountPref)
+        val prefBorder = findPreference<GlucoseEditPreference>(borderPref)
+        
+        // Sustained high alarm settings
+        val prefThreshold = findPreference<GlucoseEditPreference>(thresholdPref)
+        val prefDuration = findPreference<SeekBarPreference>(durationPref)
+
         if (alarmType.setting!!.hasDelta()) {
             val alarmSettingsCat = findPreference<PreferenceCategory>(Constants.SHARED_PREF_ALARM_TYPE_SETTINGS_CAT)
             alarmSettingsCat!!.isVisible = true
 
-            val prefDelta = findPreference<GlucoseEditPreference>(deltaPref)
-            prefDelta!!.text = preferenceManager.sharedPreferences!!.getFloat(prefDelta.key, AlarmSetting.defaultDelta).toString()
+            prefDelta?.isVisible = true
+            prefDelta?.text = preferenceManager.sharedPreferences!!.getFloat(prefDelta.key, AlarmSetting.defaultDelta).toString()
             if(alarmType == AlarmType.FALLING_FAST)
-                prefDelta.isNegative = true
+                prefDelta?.isNegative = true
 
-            val prefOccurrenceCount = findPreference<SeekBarPreference>(occurrenceCountPref)
-            prefOccurrenceCount!!.value = preferenceManager.sharedPreferences!!.getInt(prefOccurrenceCount.key, AlarmSetting.defaultDeltaCount)
+            prefOccurrenceCount?.isVisible = true
+            prefOccurrenceCount?.value = preferenceManager.sharedPreferences!!.getInt(prefOccurrenceCount.key, AlarmSetting.defaultDeltaCount)
 
-            val prefBorder = findPreference<GlucoseEditPreference>(borderPref)
-            prefBorder!!.text = preferenceManager.sharedPreferences!!.getFloat(prefBorder.key, AlarmSetting.defaultDeltaBorder).toString()
+            prefBorder?.isVisible = true
+            prefBorder?.text = preferenceManager.sharedPreferences!!.getFloat(prefBorder.key, AlarmSetting.defaultDeltaBorder).toString()
+            
+            // Hide sustained high settings
+            prefThreshold?.isVisible = false
+            prefDuration?.isVisible = false
+        } else if (alarmType == AlarmType.SUSTAINED_HIGH) {
+            val alarmSettingsCat = findPreference<PreferenceCategory>(Constants.SHARED_PREF_ALARM_TYPE_SETTINGS_CAT)
+            alarmSettingsCat!!.isVisible = true
+            
+            // Hide delta settings
+            prefDelta?.isVisible = false
+            prefOccurrenceCount?.isVisible = false
+            prefBorder?.isVisible = false
+            
+            // Show sustained high settings
+            prefThreshold?.isVisible = true
+            prefThreshold?.text = preferenceManager.sharedPreferences!!.getFloat(prefThreshold.key, SustainedHighAlarmSetting.defaultThreshold).toString()
+            
+            prefDuration?.isVisible = true
+            prefDuration?.value = preferenceManager.sharedPreferences!!.getInt(prefDuration.key, SustainedHighAlarmSetting.defaultDurationMinutes)
         }
 
     }

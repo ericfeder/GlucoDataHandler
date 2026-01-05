@@ -106,7 +106,7 @@ open class AlarmSetting(val alarmPrefix: String, var intervalMin: Int) {
         return isAlarmSettingToShare(key) || alarmPreferencesLocalOnly.contains(key)
     }
 
-    fun getSettings(forAndroidAuto: Boolean): Bundle {
+    open fun getSettings(forAndroidAuto: Boolean): Bundle {
         Log.v(LOG_ID, "getSettings called for AndroidAuto: $forAndroidAuto")
         val bundle = Bundle()
         bundle.putBoolean(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_ENABLED), enabled)
@@ -128,7 +128,7 @@ open class AlarmSetting(val alarmPrefix: String, var intervalMin: Int) {
         return bundle
     }
 
-    fun saveSettings(bundle: Bundle, editor: Editor) {
+    open fun saveSettings(bundle: Bundle, editor: Editor) {
         try {
             Log.v(LOG_ID, "saveSettings called")
             editor.putBoolean(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_ENABLED), bundle.getBoolean(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_ENABLED), enabled))
@@ -150,7 +150,7 @@ open class AlarmSetting(val alarmPrefix: String, var intervalMin: Int) {
         }
     }
 
-    fun updateSettings(sharedPref: SharedPreferences) {
+    open fun updateSettings(sharedPref: SharedPreferences) {
         try {
             Log.v(LOG_ID, "updateSettings called")
             enabled = sharedPref.getBoolean(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_ENABLED), enabled)
@@ -214,5 +214,54 @@ class DeltaAlarmSetting(alarmPrefix: String, intervalMin: Int) : AlarmSetting(al
 
     override fun getPreferencesToShare(): MutableSet<String> {
         return (super.getPreferencesToShare() + deltaPreferencesToShare).toMutableSet()
+    }
+}
+
+/**
+ * Alarm setting for sustained high glucose detection.
+ * Triggers when glucose remains above threshold for the specified duration.
+ */
+class SustainedHighAlarmSetting(alarmPrefix: String, intervalMin: Int) : AlarmSetting(alarmPrefix, intervalMin) {
+    companion object {
+        const val defaultThreshold = 200F  // mg/dL
+        const val defaultDurationMinutes = 150  // 2.5 hours
+    }
+
+    init {
+        enabled = false
+    }
+
+    var threshold = defaultThreshold
+    var durationMinutes = defaultDurationMinutes
+
+    private val sustainedHighPreferencesToShare = mutableSetOf(
+        getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_THRESHOLD),
+        getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_DURATION)
+    )
+
+    override fun getPreferencesToShare(): MutableSet<String> {
+        return (super.getPreferencesToShare() + sustainedHighPreferencesToShare).toMutableSet()
+    }
+
+    override fun getSettings(forAndroidAuto: Boolean): Bundle {
+        val bundle = super.getSettings(forAndroidAuto)
+        bundle.putFloat(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_THRESHOLD), threshold)
+        bundle.putInt(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_DURATION), durationMinutes)
+        return bundle
+    }
+
+    override fun saveSettings(bundle: Bundle, editor: Editor) {
+        super.saveSettings(bundle, editor)
+        editor.putFloat(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_THRESHOLD), 
+            bundle.getFloat(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_THRESHOLD), defaultThreshold))
+        editor.putInt(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_DURATION), 
+            bundle.getInt(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_DURATION), defaultDurationMinutes))
+    }
+
+    override fun updateSettings(sharedPref: SharedPreferences) {
+        super.updateSettings(sharedPref)
+        threshold = sharedPref.getFloat(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_THRESHOLD), defaultThreshold)
+        durationMinutes = sharedPref.getInt(getSettingName(Constants.SHARED_PREF_ALARM_SUFFIX_DURATION), defaultDurationMinutes)
+        Log.d(LOG_ID, "updateSettings sustained high: threshold=$threshold, durationMinutes=$durationMinutes")
     }
 }

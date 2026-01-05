@@ -1,6 +1,7 @@
 package de.michelinside.glucodatahandler.common.prediction
 
 import android.content.Context
+import android.graphics.Color
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
@@ -27,6 +28,18 @@ enum class TrendCategory(val symbol: String, val label: String) {
 }
 
 /**
+ * Glucose zone for probability distribution across target ranges.
+ * Uses standard diabetes zone thresholds.
+ */
+enum class GlucoseZone(val label: String, val color: Int) {
+    VERY_LOW("Very Low", Color.rgb(139, 0, 0)),      // Dark Red - < 54 mg/dL
+    LOW("Low", Color.rgb(244, 67, 54)),               // Red - 54-69 mg/dL
+    IN_RANGE("In Range", Color.rgb(76, 175, 80)),     // Green - 70-180 mg/dL
+    HIGH("High", Color.rgb(255, 235, 59)),            // Yellow - 181-250 mg/dL
+    VERY_HIGH("Very High", Color.rgb(255, 152, 0))    // Orange - > 250 mg/dL
+}
+
+/**
  * Trend probabilities for a specific horizon.
  */
 data class TrendProbabilities(
@@ -39,6 +52,30 @@ data class TrendProbabilities(
     
     fun getProbability(category: TrendCategory): Float {
         return probabilities[category] ?: 0f
+    }
+}
+
+/**
+ * Zone probabilities for a specific horizon.
+ * Represents the probability distribution across glucose zones.
+ */
+data class ZoneProbabilities(
+    val horizon: Int,
+    val currentGlucose: Int,
+    val probabilities: Map<GlucoseZone, Float>
+) {
+    fun getProbability(zone: GlucoseZone): Float {
+        return probabilities[zone] ?: 0f
+    }
+    
+    /**
+     * Get zones with probability > threshold, sorted by probability descending.
+     */
+    fun getSignificantZones(threshold: Float = 0.01f): List<Pair<GlucoseZone, Float>> {
+        return probabilities.entries
+            .filter { it.value > threshold }
+            .sortedByDescending { it.value }
+            .map { it.key to it.value }
     }
 }
 
@@ -624,6 +661,138 @@ object TcnPredictionService {
             currentGlucose < 120 -> 0.05f  // 5% chance if normal
             else -> 0.02f                   // 2% chance if high
         }
+    }
+    
+    /**
+     * Get zone probabilities for all glucose zones.
+     * Computes the probability that glucose will fall into each zone based on
+     * current glucose + predicted delta.
+     * 
+     * Zone thresholds (standard):
+     * - Very Low: < 54 mg/dL
+     * - Low: 54-69 mg/dL
+     * - In Range: 70-180 mg/dL
+     * - High: 181-250 mg/dL
+     * - Very High: > 250 mg/dL
+     */
+    fun getZoneProbabilities(context: Context, horizon: Int, currentGlucose: Int): ZoneProbabilities? {
+        init(context)
+        
+        if (!modelsAvailable || horizon !in PREDICTION_HORIZONS) {
+            return null
+        }
+        
+        if (currentGlucose <= 0) {
+            return null
+        }
+        
+        try {
+            val input = buildInputTensor() ?: return null
+            val pmf = runInference(horizon, input) ?: return null
+            
+            // Get bin centers from metadata
+            val binConfig = metadata?.binConfig?.get(horizon.toString())
+            val binCenters = binConfig?.binCenters
+            val nBins = pmf.size
+            val useBinCenters = binCenters != null && binCenters.size == nBins
+            
+            // Fallback parameters if bin centers not available
+            val minDelta = binConfig?.min?.toFloat() ?: (-3f * horizon - 25f)
+            val maxDelta = binConfig?.max?.toFloat() ?: (3f * horizon + 25f)
+            val step = if (nBins > 1) (maxDelta - minDelta) / (nBins - 1) else 1f
+            
+            // Initialize zone probabilities
+            var probVeryLow = 0f
+            var probLow = 0f
+            var probInRange = 0f
+            var probHigh = 0f
+            var probVeryHigh = 0f
+            
+            // Sum probabilities for each zone
+            for (i in pmf.indices) {
+                val delta = if (useBinCenters) {
+                    binCenters!![i].toFloat()
+                } else {
+                    minDelta + i * step
+                }
+                
+                val predictedGlucose = currentGlucose + delta
+                
+                when {
+                    predictedGlucose < 54 -> probVeryLow += pmf[i]
+                    predictedGlucose < 70 -> probLow += pmf[i]
+                    predictedGlucose <= 180 -> probInRange += pmf[i]
+                    predictedGlucose <= 250 -> probHigh += pmf[i]
+                    else -> probVeryHigh += pmf[i]
+                }
+            }
+            
+            val zoneProbs = mapOf(
+                GlucoseZone.VERY_LOW to probVeryLow,
+                GlucoseZone.LOW to probLow,
+                GlucoseZone.IN_RANGE to probInRange,
+                GlucoseZone.HIGH to probHigh,
+                GlucoseZone.VERY_HIGH to probVeryHigh
+            )
+            
+            Log.d(LOG_ID, "Zone probabilities for ${horizon}min (glucose=$currentGlucose): " +
+                    "VeryLow=${String.format("%.1f%%", probVeryLow * 100)}, " +
+                    "Low=${String.format("%.1f%%", probLow * 100)}, " +
+                    "InRange=${String.format("%.1f%%", probInRange * 100)}, " +
+                    "High=${String.format("%.1f%%", probHigh * 100)}, " +
+                    "VeryHigh=${String.format("%.1f%%", probVeryHigh * 100)}")
+            
+            return ZoneProbabilities(horizon, currentGlucose, zoneProbs)
+            
+        } catch (e: Exception) {
+            Log.e(LOG_ID, "Error computing zone probabilities: ${e.message}", e)
+            return null
+        }
+    }
+    
+    /**
+     * Get test zone probabilities for UI testing.
+     */
+    fun getTestZoneProbabilities(currentGlucose: Int, horizon: Int = 15): ZoneProbabilities {
+        // Return reasonable test values based on current glucose
+        val probs = when {
+            currentGlucose < 70 -> mapOf(
+                GlucoseZone.VERY_LOW to 0.15f,
+                GlucoseZone.LOW to 0.25f,
+                GlucoseZone.IN_RANGE to 0.50f,
+                GlucoseZone.HIGH to 0.08f,
+                GlucoseZone.VERY_HIGH to 0.02f
+            )
+            currentGlucose < 100 -> mapOf(
+                GlucoseZone.VERY_LOW to 0.02f,
+                GlucoseZone.LOW to 0.08f,
+                GlucoseZone.IN_RANGE to 0.75f,
+                GlucoseZone.HIGH to 0.12f,
+                GlucoseZone.VERY_HIGH to 0.03f
+            )
+            currentGlucose < 150 -> mapOf(
+                GlucoseZone.VERY_LOW to 0.01f,
+                GlucoseZone.LOW to 0.03f,
+                GlucoseZone.IN_RANGE to 0.86f,
+                GlucoseZone.HIGH to 0.08f,
+                GlucoseZone.VERY_HIGH to 0.02f
+            )
+            currentGlucose < 200 -> mapOf(
+                GlucoseZone.VERY_LOW to 0.00f,
+                GlucoseZone.LOW to 0.02f,
+                GlucoseZone.IN_RANGE to 0.45f,
+                GlucoseZone.HIGH to 0.40f,
+                GlucoseZone.VERY_HIGH to 0.13f
+            )
+            else -> mapOf(
+                GlucoseZone.VERY_LOW to 0.00f,
+                GlucoseZone.LOW to 0.01f,
+                GlucoseZone.IN_RANGE to 0.15f,
+                GlucoseZone.HIGH to 0.35f,
+                GlucoseZone.VERY_HIGH to 0.49f
+            )
+        }
+        return ZoneProbabilities(horizon, currentGlucose, probs)
     }
     
     /**

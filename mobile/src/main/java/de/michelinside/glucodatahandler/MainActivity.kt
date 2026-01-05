@@ -62,9 +62,12 @@ import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
 import de.michelinside.glucodatahandler.common.notifier.NotifySource
 import de.michelinside.glucodatahandler.common.tasks.DexcomShareSourceTask
 import de.michelinside.glucodatahandler.common.ui.Dialogs
+import de.michelinside.glucodatahandler.common.prediction.GlucoseZone
 import de.michelinside.glucodatahandler.common.prediction.PredictionData
 import de.michelinside.glucodatahandler.common.prediction.TcnPredictionService
 import de.michelinside.glucodatahandler.common.prediction.TrendCategory
+import de.michelinside.glucodatahandler.common.prediction.ZoneProbabilities
+import de.michelinside.glucodatahandler.common.ui.ProbabilityPillView
 import de.michelinside.glucodatahandler.common.chart.TrendProbabilityChart
 import de.michelinside.glucodatahandler.common.utils.BitmapUtils
 import de.michelinside.glucodatahandler.common.utils.GlucoDataUtils
@@ -124,7 +127,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
     private var trendProbabilityChart: TrendProbabilityChart? = null
     private var trendProbabilityLayout: LinearLayout? = null
     private var trendDivider: View? = null
-    private var txtLowProbability: TextView? = null
+    private var probabilityPillsContainer: LinearLayout? = null
     private var selectedHorizon: Int = 15
     private var horizonButtons: Map<Int, Button> = emptyMap()
     
@@ -185,8 +188,10 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             
             // Initialize main views
             txtBgValue = findViewById(R.id.txtBgValue)
-            viewIcon = findViewById(R.id.viewIcon)
             modelViewIcon = findViewById(R.id.modelViewIcon)
+            
+            // viewIcon placeholder for compatibility (Dexcom arrow now shown via tooltip on ML arrow)
+            viewIcon = ImageView(this)
             timeText = findViewById(R.id.timeText)
             deltaText = findViewById(R.id.deltaText)
             iobText = findViewById(R.id.iobText)
@@ -225,7 +230,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             trendDivider = findViewById(R.id.trendDivider)
             trendProbabilityLayout = findViewById(R.id.layout_trend_probability)
             trendProbabilityChart = findViewById(R.id.trendProbabilityChart)
-            txtLowProbability = findViewById(R.id.txtLowProbability)
+            probabilityPillsContainer = findViewById(R.id.probabilityPillsContainer)
             
             val mainContent: View = findViewById(R.id.mainContent)
             initTrendProbabilityChart(mainContent)
@@ -800,18 +805,20 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             } else {
                 txtBgValue.paintFlags = 0
             }
-            viewIcon.setImageIcon(BitmapUtils.getRateAsIcon("main_trend", withShadow = true))
-            viewIcon.contentDescription = ReceiveData.getRateAsText(this)
-
-            // Update model prediction arrow
+            // ML prediction arrow at top (main arrow)
             val showModelArrow = PredictionData.predictionsEnabled && 
                                  sharedPref.getBoolean(Constants.SHARED_PREF_SHOW_MODEL_ARROW, true)
             if (showModelArrow) {
                 val modelIcon = BitmapUtils.getModelRateAsIcon("main_model_trend", withShadow = true)
                 if (modelIcon != null) {
                     modelViewIcon?.setImageIcon(modelIcon)
-                    modelViewIcon?.contentDescription = "Model: ${PredictionData.modelTrendLabel}"
+                    modelViewIcon?.contentDescription = "Model: ${PredictionData.modelTrendLabel}. Tap to see Dexcom arrow."
                     modelViewIcon?.visibility = View.VISIBLE
+                    
+                    // Add click listener to show Dexcom arrow tooltip
+                    modelViewIcon?.setOnClickListener { view ->
+                        showDexcomArrowTooltip(view)
+                    }
                 } else {
                     modelViewIcon?.visibility = View.GONE
                 }
@@ -1195,48 +1202,134 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             // Update the chart with current glucose for projected values
             trendProbabilityChart?.setTrendProbabilities(probabilities, ReceiveData.rawValue)
             
-            // Update low probability text
-            updateLowProbability(isTestData)
+            // Update zone probability pills
+            updateZoneProbabilities(isTestData)
         } catch (exc: Exception) {
             Log.e(LOG_ID, "updateTrendProbabilityChart exception: ${exc.message}")
         }
     }
     
-    private fun updateLowProbability(isTestData: Boolean) {
+    private fun updateZoneProbabilities(isTestData: Boolean) {
         try {
+            val container = probabilityPillsContainer ?: return
+            container.removeAllViews()
+            
             val currentGlucose = ReceiveData.rawValue
             if (currentGlucose <= 0) {
-                txtLowProbability?.text = "Risk of Low (<70): —"
                 return
             }
             
-            val lowProb = if (isTestData) {
-                TcnPredictionService.getTestLowProbability(currentGlucose)
+            val zoneProbabilities = if (isTestData) {
+                TcnPredictionService.getTestZoneProbabilities(currentGlucose, selectedHorizon)
             } else {
-                TcnPredictionService.getLowProbability(this, selectedHorizon, currentGlucose) 
-                    ?: TcnPredictionService.getTestLowProbability(currentGlucose)
+                TcnPredictionService.getZoneProbabilities(this, selectedHorizon, currentGlucose)
+                    ?: TcnPredictionService.getTestZoneProbabilities(currentGlucose, selectedHorizon)
             }
             
-            val percentText = when {
-                lowProb < 0.01f -> "<1%"
-                else -> "${(lowProb * 100).toInt()}%"
+            // Get zones with >1% probability, ordered by zone (not by probability)
+            val zoneOrder = listOf(
+                GlucoseZone.VERY_LOW,
+                GlucoseZone.LOW,
+                GlucoseZone.IN_RANGE,
+                GlucoseZone.HIGH,
+                GlucoseZone.VERY_HIGH
+            )
+            
+            val significantZones = zoneOrder.mapNotNull { zone ->
+                val prob = zoneProbabilities.getProbability(zone)
+                if (prob > 0.01f) zone to prob else null
             }
             
-            // Color code based on risk level
-            val color = when {
-                lowProb >= 0.40f -> android.graphics.Color.RED                  // Red for very high risk (>=40%)
-                lowProb >= 0.20f -> android.graphics.Color.rgb(255, 165, 0)     // Orange for high risk (20-40%)
-                lowProb >= 0.10f -> android.graphics.Color.YELLOW               // Yellow for medium risk (10-20%)
-                else -> android.graphics.Color.WHITE                            // White for low risk (<10%)
+            // Pill dimensions in dp
+            val density = resources.displayMetrics.density
+            val pillWidth = (100 * density).toInt()
+            val pillHeight = (36 * density).toInt()
+            val pillMargin = (4 * density).toInt()
+            
+            for ((zone, probability) in significantZones) {
+                val pillView = ProbabilityPillView(this)
+                pillView.setData(zone.label, probability, zone.color)
+                
+                val layoutParams = LinearLayout.LayoutParams(pillWidth, pillHeight)
+                layoutParams.setMargins(pillMargin, 0, pillMargin, 0)
+                pillView.layoutParams = layoutParams
+                
+                container.addView(pillView)
             }
             
-            txtLowProbability?.text = "Risk of Low (<70): $percentText"
-            txtLowProbability?.setTextColor(color)
+            Log.d(LOG_ID, "Updated zone pills: ${significantZones.size} zones shown")
             
-            // Bold text for very high risk (>=40%)
-            txtLowProbability?.setTypeface(null, if (lowProb >= 0.40f) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         } catch (exc: Exception) {
-            Log.e(LOG_ID, "updateLowProbability exception: ${exc.message}")
+            Log.e(LOG_ID, "updateZoneProbabilities exception: ${exc.message}")
+        }
+    }
+    
+    private fun showDexcomArrowTooltip(anchorView: View) {
+        try {
+            val dexcomIcon = BitmapUtils.getRateAsIcon("tooltip_dexcom_trend", withShadow = false)
+            val dexcomText = ReceiveData.getRateAsText(this)
+            
+            // Create a horizontal layout with label and arrow
+            val container = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(32, 24, 32, 24)
+                setBackgroundColor(android.graphics.Color.argb(230, 40, 40, 40))
+            }
+            
+            val label = TextView(this).apply {
+                text = "Dexcom:"
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 16f
+            }
+            container.addView(label)
+            
+            val arrowImage = ImageView(this).apply {
+                if (dexcomIcon != null) {
+                    setImageIcon(dexcomIcon)
+                }
+                layoutParams = LinearLayout.LayoutParams(72, 72).apply {
+                    marginStart = 16
+                }
+            }
+            container.addView(arrowImage)
+            
+            val trendLabel = TextView(this).apply {
+                text = dexcomText
+                setTextColor(android.graphics.Color.LTGRAY)
+                textSize = 14f
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = 12
+                }
+            }
+            container.addView(trendLabel)
+            
+            // Create and show popup
+            val popup = android.widget.PopupWindow(
+                container,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                true
+            ).apply {
+                elevation = 10f
+                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+            
+            // Position below the anchor view
+            val location = IntArray(2)
+            anchorView.getLocationOnScreen(location)
+            popup.showAtLocation(anchorView, Gravity.NO_GRAVITY, location[0] - 50, location[1] + anchorView.height + 10)
+            
+            // Auto-dismiss after 2 seconds
+            anchorView.postDelayed({ 
+                if (popup.isShowing) popup.dismiss() 
+            }, 2000)
+            
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "showDexcomArrowTooltip exception: ${exc.message}")
         }
     }
 
