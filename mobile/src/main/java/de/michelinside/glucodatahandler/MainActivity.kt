@@ -1156,10 +1156,11 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     button.setTextColor(android.graphics.Color.WHITE)
                     button.alpha = 1.0f
                 } else {
-                    // Unselected style - transparent background with blue text
-                    button.background = null
+                    // Unselected style - grey outline with blue text
+                    button.background = ContextCompat.getDrawable(this, R.drawable.button_outline_grey)
+                    button.backgroundTintList = null
                     button.setTextColor(android.graphics.Color.rgb(30, 144, 255))
-                    button.alpha = 0.8f
+                    button.alpha = 1.0f
                 }
             }
             
