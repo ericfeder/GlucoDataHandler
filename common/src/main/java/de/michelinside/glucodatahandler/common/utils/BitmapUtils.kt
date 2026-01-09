@@ -355,7 +355,7 @@ object BitmapUtils {
         if (modelRate.isNaN()) return null
         return rateToBitmap(
             modelRate, 
-            color ?: Color.rgb(30, 144, 255), // Blue for model predictions
+            color ?: ReceiveData.getGlucoseColor(), // Same color as blood sugar
             resizeFactor = resizeFactor, 
             width = width, 
             height = height, 

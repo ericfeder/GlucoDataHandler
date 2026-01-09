@@ -202,6 +202,19 @@ object PredictionData : NotifierInterface, SharedPreferences.OnSharedPreferenceC
                 showModelArrow = sharedPreferences?.getBoolean(key, true) ?: true
                 Log.i(LOG_ID, "Show model arrow changed: $showModelArrow")
             }
+            Constants.SHARED_PREF_PREDICTION_MODEL -> {
+                val newModel = sharedPreferences?.getString(key, Constants.PREDICTION_MODEL_BASELINE)
+                    ?: Constants.PREDICTION_MODEL_BASELINE
+                Log.i(LOG_ID, "Prediction model changed: $newModel")
+                // Clear all caches, refresh model selection, and regenerate immediately
+                predictions = emptyList()
+                if (GlucoDataService.context != null) {
+                    GlucosePredictionService.refreshModelSelection(GlucoDataService.context!!)
+                    if (predictionsEnabled && ReceiveData.time > 0) {
+                        updatePredictions(GlucoDataService.context!!)
+                    }
+                }
+            }
         }
     }
     

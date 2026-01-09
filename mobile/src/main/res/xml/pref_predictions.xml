@@ -21,6 +21,16 @@
             android:dependency="predictions_enabled"
             app:iconSpaceReserved="false" />
             
+        <androidx.preference.ListPreference
+            android:key="prediction_model"
+            android:defaultValue="baseline"
+            android:entries="@array/prediction_model_labels"
+            android:entryValues="@array/prediction_model_values"
+            android:summary="@string/pref_prediction_model_summary"
+            android:title="@string/pref_prediction_model"
+            android:dependency="predictions_enabled"
+            app:iconSpaceReserved="false" />
+            
     </PreferenceCategory>
 
 </PreferenceScreen>

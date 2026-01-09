@@ -1,8 +1,9 @@
 package de.michelinside.glucodatahandler.common.prediction
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
-import com.google.gson.Gson
+import de.michelinside.glucodatahandler.common.Constants
 import de.michelinside.glucodatahandler.common.ReceiveData
 import de.michelinside.glucodatahandler.common.utils.GlucoDataUtils
 
@@ -33,16 +34,22 @@ data class ModelMetadata(
 /**
  * Service for on-device glucose predictions using TCN models.
  * 
- * Uses trained TCN distribution models that output a probability mass function (PMF),
- * from which Q10, Q50, Q90 quantile predictions are computed.
+ * Supports two model types:
+ * - Baseline: 6 separate single-horizon TCN models
+ * - E2: Single multi-output TCN model with horizon-specific bins
+ * 
+ * Model selection is controlled via SHARED_PREF_PREDICTION_MODEL preference.
  */
-object GlucosePredictionService {
+object GlucosePredictionService : SharedPreferences.OnSharedPreferenceChangeListener {
     private const val LOG_ID = "GDH.PredictionService"
     
     private val PREDICTION_HORIZONS = listOf(5, 10, 15, 20, 25, 30)
     
     private var metadata: ModelMetadata? = null
     private var initialized = false
+    
+    // Current model selection
+    private var currentModel: String = Constants.PREDICTION_MODEL_BASELINE
     
     // Cache for predictions
     private var cachedPredictions: List<GlucosePrediction> = emptyList()
@@ -54,21 +61,26 @@ object GlucosePredictionService {
     fun init(context: Context) {
         if (initialized) return
         
-        Log.i(LOG_ID, "Initializing GlucosePredictionService (TCN-based)")
+        Log.i(LOG_ID, "Initializing GlucosePredictionService")
         
         try {
-            // Initialize TCN prediction service
-            TcnPredictionService.init(context)
+            // Load model selection from preferences
+            val sharedPref = context.getSharedPreferences(Constants.SHARED_PREF_TAG, Context.MODE_PRIVATE)
+            currentModel = sharedPref.getString(Constants.SHARED_PREF_PREDICTION_MODEL, Constants.PREDICTION_MODEL_BASELINE) 
+                ?: Constants.PREDICTION_MODEL_BASELINE
+            sharedPref.registerOnSharedPreferenceChangeListener(this)
             
-            // Create metadata from TCN service
-            metadata = ModelMetadata(
-                version = "2.0-TCN",
-                created_at = "2025-01-01",
-                model_type = "TCN Distribution"
-            )
+            Log.i(LOG_ID, "Selected model: $currentModel")
+            
+            // Initialize both services (they'll load on demand)
+            TcnPredictionService.init(context)
+            TcnMultiheadPredictionService.init(context)
+            
+            // Update metadata based on selected model
+            updateMetadata()
             
             initialized = true
-            Log.i(LOG_ID, "Initialization complete. Using TCN models: ${TcnPredictionService.isAvailable()}")
+            Log.i(LOG_ID, "Initialization complete. Baseline available: ${TcnPredictionService.isAvailable()}, E2 available: ${TcnMultiheadPredictionService.isAvailable()}")
         } catch (e: Exception) {
             Log.e(LOG_ID, "Failed to initialize: ${e.message}", e)
             initialized = true
@@ -76,19 +88,42 @@ object GlucosePredictionService {
     }
     
     /**
+     * Update metadata based on selected model.
+     */
+    private fun updateMetadata() {
+        metadata = when (currentModel) {
+            Constants.PREDICTION_MODEL_E2 -> ModelMetadata(
+                version = "2.0-E2",
+                created_at = "2026-01-01",
+                model_type = "TCN Multi-horizon"
+            )
+            else -> ModelMetadata(
+                version = "2.0-TCN",
+                created_at = "2025-01-01",
+                model_type = "TCN Distribution"
+            )
+        }
+    }
+    
+    /**
      * Check if prediction service is available (models loaded successfully).
      */
-    fun isAvailable(): Boolean = initialized && TcnPredictionService.isAvailable()
+    fun isAvailable(): Boolean {
+        return when (currentModel) {
+            Constants.PREDICTION_MODEL_E2 -> initialized && TcnMultiheadPredictionService.isAvailable()
+            else -> initialized && TcnPredictionService.isAvailable()
+        }
+    }
     
     /**
      * Get predictions for all horizons based on current glucose data.
-     * Returns cached predictions if data hasn't changed.
+     * Routes to the appropriate service based on model selection.
      */
     fun getPredictions(context: Context): List<GlucosePrediction> {
         init(context)
         
-        if (!TcnPredictionService.isAvailable()) {
-            Log.w(LOG_ID, "TCN models not available, returning empty predictions")
+        if (!isAvailable()) {
+            Log.w(LOG_ID, "Selected model ($currentModel) not available, returning empty predictions")
             return emptyList()
         }
         
@@ -99,8 +134,11 @@ object GlucosePredictionService {
         }
         
         try {
-            // Get quantile predictions from TCN for all horizons
-            val tcnPredictions = TcnPredictionService.getAllQuantilePredictions(context)
+            // Get quantile predictions from the selected model
+            val tcnPredictions = when (currentModel) {
+                Constants.PREDICTION_MODEL_E2 -> TcnMultiheadPredictionService.getAllQuantilePredictions(context)
+                else -> TcnPredictionService.getAllQuantilePredictions(context)
+            }
             
             // Convert to GlucosePrediction format
             val predictions = tcnPredictions.map { tcn ->
@@ -119,7 +157,7 @@ object GlucosePredictionService {
             cachedPredictions = predictions
             cachedTime = currentTime
             
-            Log.d(LOG_ID, "Generated ${predictions.size} predictions from TCN")
+            Log.d(LOG_ID, "Generated ${predictions.size} predictions from $currentModel model")
             return predictions
             
         } catch (e: Exception) {
@@ -180,12 +218,52 @@ object GlucosePredictionService {
     fun getMetadata(): ModelMetadata? = metadata
     
     /**
+     * Get the currently selected model name.
+     */
+    fun getCurrentModel(): String = currentModel
+    
+    /**
      * Clear cached predictions (call when new glucose data arrives).
      */
     fun clearCache() {
         cachedPredictions = emptyList()
         cachedTime = 0L
         TcnPredictionService.clearCache()
+        TcnMultiheadPredictionService.clearCache()
+    }
+    
+    /**
+     * Refresh model selection from preferences.
+     * Call this to ensure the latest model preference is used.
+     */
+    fun refreshModelSelection(context: Context) {
+        val sharedPref = context.getSharedPreferences(Constants.SHARED_PREF_TAG, Context.MODE_PRIVATE)
+        val newModel = sharedPref.getString(Constants.SHARED_PREF_PREDICTION_MODEL, Constants.PREDICTION_MODEL_BASELINE)
+            ?: Constants.PREDICTION_MODEL_BASELINE
+        if (newModel != currentModel) {
+            Log.i(LOG_ID, "Refreshing model selection: $currentModel -> $newModel")
+            currentModel = newModel
+            updateMetadata()
+            clearCache()
+        }
+    }
+    
+    /**
+     * Handle preference changes.
+     */
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+        when (key) {
+            Constants.SHARED_PREF_PREDICTION_MODEL -> {
+                val newModel = sharedPreferences?.getString(key, Constants.PREDICTION_MODEL_BASELINE) 
+                    ?: Constants.PREDICTION_MODEL_BASELINE
+                if (newModel != currentModel) {
+                    Log.i(LOG_ID, "Model changed: $currentModel -> $newModel")
+                    currentModel = newModel
+                    updateMetadata()
+                    clearCache()
+                }
+            }
+        }
     }
     
     /**
@@ -194,6 +272,7 @@ object GlucosePredictionService {
     fun close() {
         try {
             TcnPredictionService.close()
+            TcnMultiheadPredictionService.close()
             initialized = false
             clearCache()
             Log.i(LOG_ID, "GlucosePredictionService closed")

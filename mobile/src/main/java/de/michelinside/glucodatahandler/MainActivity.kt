@@ -1226,19 +1226,23 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                     ?: TcnPredictionService.getTestZoneProbabilities(currentGlucose, selectedHorizon)
             }
             
-            // Get zones with >1% probability, ordered by zone (not by probability)
-            val zoneOrder = listOf(
-                GlucoseZone.VERY_LOW,
-                GlucoseZone.LOW,
-                GlucoseZone.IN_RANGE,
-                GlucoseZone.HIGH,
-                GlucoseZone.VERY_HIGH
-            )
+            // Get individual zone probabilities for tooltips
+            val veryLowProb = zoneProbabilities.getProbability(GlucoseZone.VERY_LOW)
+            val lowOnlyProb = zoneProbabilities.getProbability(GlucoseZone.LOW)
+            val inRangeProb = zoneProbabilities.getProbability(GlucoseZone.IN_RANGE)
+            val highOnlyProb = zoneProbabilities.getProbability(GlucoseZone.HIGH)
+            val veryHighProb = zoneProbabilities.getProbability(GlucoseZone.VERY_HIGH)
             
-            val significantZones = zoneOrder.mapNotNull { zone ->
-                val prob = zoneProbabilities.getProbability(zone)
-                if (prob > 0.01f) zone to prob else null
-            }
+            // Combine zones: Very Low + Low → "Low", Very High + High → "High"
+            val lowProb = veryLowProb + lowOnlyProb
+            val highProb = highOnlyProb + veryHighProb
+            
+            // Always show all 3 pills: Low, In Range, High
+            val combinedZones = listOf(
+                Triple("Low", lowProb, GlucoseZone.LOW.color),
+                Triple("In Range", inRangeProb, GlucoseZone.IN_RANGE.color),
+                Triple("High", highProb, GlucoseZone.HIGH.color)
+            )
             
             // Pill dimensions in dp
             val density = resources.displayMetrics.density
@@ -1246,28 +1250,131 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             val pillHeight = (36 * density).toInt()
             val pillMargin = (4 * density).toInt()
             
-            for ((zone, probability) in significantZones) {
+            for ((label, probability, color) in combinedZones) {
                 val pillView = ProbabilityPillView(this)
-                pillView.setData(zone.label, probability, zone.color)
+                pillView.setData(label, probability, color)
                 
                 val layoutParams = LinearLayout.LayoutParams(pillWidth, pillHeight)
                 layoutParams.setMargins(pillMargin, 0, pillMargin, 0)
                 pillView.layoutParams = layoutParams
                 
+                // Add click handlers for Low and High pills to show breakdown tooltip
+                when (label) {
+                    "Low" -> {
+                        pillView.isClickable = true
+                        pillView.setOnClickListener { view ->
+                            showZoneBreakdownTooltip(view, isLow = true, lowOnlyProb, veryLowProb)
+                        }
+                    }
+                    "High" -> {
+                        pillView.isClickable = true
+                        pillView.setOnClickListener { view ->
+                            showZoneBreakdownTooltip(view, isLow = false, highOnlyProb, veryHighProb)
+                        }
+                    }
+                }
+                
                 container.addView(pillView)
             }
             
-            Log.d(LOG_ID, "Updated zone pills: ${significantZones.size} zones shown")
+            Log.d(LOG_ID, "Updated zone pills: Low=${(lowProb*100).toInt()}%, InRange=${(inRangeProb*100).toInt()}%, High=${(highProb*100).toInt()}%")
             
         } catch (exc: Exception) {
             Log.e(LOG_ID, "updateZoneProbabilities exception: ${exc.message}")
         }
     }
     
+    /**
+     * Shows a tooltip with the breakdown of Low/Very Low or High/Very High probabilities.
+     * Auto-dismisses after 3 seconds.
+     */
+    private fun showZoneBreakdownTooltip(
+        anchorView: View,
+        isLow: Boolean,
+        mainProb: Float,
+        veryProb: Float
+    ) {
+        try {
+            val (mainLabel, mainThreshold, veryLabel, veryThreshold) = if (isLow) {
+                listOf("Low", "55-69", "Very Low", "<55")
+            } else {
+                listOf("High", "181-250", "Very High", ">250")
+            }
+            
+            // Create vertical layout for the tooltip
+            val container = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(32, 24, 32, 24)
+                setBackgroundColor(android.graphics.Color.argb(230, 40, 40, 40))
+            }
+            
+            // Format probability display
+            fun formatProb(prob: Float): String {
+                return when {
+                    prob < 0.01f -> "<1%"
+                    else -> "${(prob * 100).toInt()}%"
+                }
+            }
+            
+            // Main zone row (e.g., "High (>180): 25%")
+            val mainRow = TextView(this).apply {
+                text = "$mainLabel ($mainThreshold): ${formatProb(mainProb)}"
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 15f
+            }
+            container.addView(mainRow)
+            
+            // Very zone row (e.g., "Very High (>250): 10%")
+            val veryRow = TextView(this).apply {
+                text = "$veryLabel ($veryThreshold): ${formatProb(veryProb)}"
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 15f
+                setPadding(0, 8, 0, 0)
+            }
+            container.addView(veryRow)
+            
+            // Create and show popup
+            val popup = android.widget.PopupWindow(
+                container,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                true
+            ).apply {
+                elevation = 10f
+                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+            
+            // Position above the anchor view (pills are at bottom, tooltip should appear above)
+            val location = IntArray(2)
+            anchorView.getLocationOnScreen(location)
+            
+            // Measure the popup content to position it properly
+            container.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            val popupHeight = container.measuredHeight
+            val popupWidth = container.measuredWidth
+            
+            // Center horizontally over the anchor, position above it
+            val xPos = location[0] + (anchorView.width / 2) - (popupWidth / 2)
+            val yPos = location[1] - popupHeight - 10
+            
+            popup.showAtLocation(anchorView, Gravity.NO_GRAVITY, xPos, yPos)
+            
+            // Auto-dismiss after 3 seconds
+            anchorView.postDelayed({ 
+                if (popup.isShowing) popup.dismiss() 
+            }, 3000)
+            
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "showZoneBreakdownTooltip exception: ${exc.message}")
+        }
+    }
+    
     private fun showDexcomArrowTooltip(anchorView: View) {
         try {
             val dexcomIcon = BitmapUtils.getRateAsIcon("tooltip_dexcom_trend", withShadow = false)
-            val dexcomText = ReceiveData.getRateAsText(this)
             
             // Create a horizontal layout with label and arrow
             val container = LinearLayout(this).apply {
@@ -1278,7 +1385,7 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             }
             
             val label = TextView(this).apply {
-                text = "Dexcom:"
+                text = "Dexcom Arrow:"
                 setTextColor(android.graphics.Color.WHITE)
                 textSize = 16f
             }
@@ -1293,19 +1400,6 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                 }
             }
             container.addView(arrowImage)
-            
-            val trendLabel = TextView(this).apply {
-                text = dexcomText
-                setTextColor(android.graphics.Color.LTGRAY)
-                textSize = 14f
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginStart = 12
-                }
-            }
-            container.addView(trendLabel)
             
             // Create and show popup
             val popup = android.widget.PopupWindow(
