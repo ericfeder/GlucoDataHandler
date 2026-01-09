@@ -137,9 +137,12 @@ object TcnPredictionService {
     private var initialized = false
     private var modelsAvailable = false
     
-    // Cache
+    // Cache for trend probabilities
     private var cachedProbabilities: MutableMap<Int, TrendProbabilities> = mutableMapOf()
     private var cachedTime: Long = 0L
+    
+    // Cache for raw PMF to ensure consistency across getTrendProbabilities, getZoneProbabilities, and getQuantilePrediction
+    private var cachedPmf: MutableMap<Int, FloatArray> = mutableMapOf()
     
     /**
      * Initialize the TCN prediction service by loading models from assets.
@@ -248,6 +251,7 @@ object TcnPredictionService {
         if (currentTime != cachedTime) {
             Log.d(LOG_ID, "Time changed ($cachedTime -> $currentTime), invalidating trend cache")
             cachedProbabilities.clear()
+            cachedPmf.clear()
             cachedTime = currentTime
         }
         
@@ -257,33 +261,40 @@ object TcnPredictionService {
         }
         
         try {
-            // Log current state
-            Log.d(LOG_ID, "getTrendProbabilities: time=${ReceiveData.time}, glucose=${ReceiveData.rawValue}, dbActive=${dbAccess.active}")
-            
-            // Build input features
-            val input = buildInputTensor()
-            if (input == null) {
-                Log.w(LOG_ID, "Could not build input tensor - check earlier logs for reason")
-                return null
-            }
-            
-            Log.d(LOG_ID, "Input tensor built: size=${input.size}, values=[${input.take(4).joinToString { "%.3f".format(it) }}...]")
-            
-            // Run inference
-            val pmf = runInference(horizon, input)
-            if (pmf == null) {
-                Log.w(LOG_ID, "Inference failed for horizon $horizon")
-                return null
-            }
-            
-            val pmfSum = pmf.sum()
-            val pmfMax = pmf.maxOrNull() ?: 0f
-            val pmfPeakIdx = pmf.indices.maxByOrNull { pmf[it] } ?: -1
-            Log.d(LOG_ID, "PMF received: size=${pmf.size}, sum=$pmfSum, max=$pmfMax at idx=$pmfPeakIdx")
-            
-            if (pmfSum < 0.01f || pmfSum.isNaN()) {
-                Log.e(LOG_ID, "Invalid PMF: sum=$pmfSum - model may not be loaded correctly")
-                return null
+            // Use cached PMF if available, otherwise run inference
+            val pmf = cachedPmf[horizon] ?: run {
+                // Log current state
+                Log.d(LOG_ID, "getTrendProbabilities: time=${ReceiveData.time}, glucose=${ReceiveData.rawValue}, dbActive=${dbAccess.active}")
+                
+                // Build input features
+                val input = buildInputTensor()
+                if (input == null) {
+                    Log.w(LOG_ID, "Could not build input tensor - check earlier logs for reason")
+                    return null
+                }
+                
+                Log.d(LOG_ID, "Input tensor built: size=${input.size}, values=[${input.take(4).joinToString { "%.3f".format(it) }}...]")
+                
+                // Run inference
+                val result = runInference(horizon, input)
+                if (result == null) {
+                    Log.w(LOG_ID, "Inference failed for horizon $horizon")
+                    return null
+                }
+                
+                val pmfSum = result.sum()
+                val pmfMax = result.maxOrNull() ?: 0f
+                val pmfPeakIdx = result.indices.maxByOrNull { result[it] } ?: -1
+                Log.d(LOG_ID, "PMF received: size=${result.size}, sum=$pmfSum, max=$pmfMax at idx=$pmfPeakIdx")
+                
+                if (pmfSum < 0.01f || pmfSum.isNaN()) {
+                    Log.e(LOG_ID, "Invalid PMF: sum=$pmfSum - model may not be loaded correctly")
+                    return null
+                }
+                
+                // Cache the PMF for getZoneProbabilities/getQuantilePrediction
+                cachedPmf[horizon] = result
+                result
             }
             
             // Convert PMF to trend probabilities
@@ -565,6 +576,7 @@ object TcnPredictionService {
      */
     fun clearCache() {
         cachedProbabilities.clear()
+        cachedPmf.clear()
         cachedTime = 0L
     }
     
@@ -686,9 +698,23 @@ object TcnPredictionService {
             return null
         }
         
+        // Check cache - invalidate if time changed
+        val currentTime = ReceiveData.time
+        if (currentTime != cachedTime) {
+            Log.d(LOG_ID, "Time changed in getZoneProbabilities, invalidating cache")
+            cachedProbabilities.clear()
+            cachedPmf.clear()
+            cachedTime = currentTime
+        }
+        
         try {
-            val input = buildInputTensor() ?: return null
-            val pmf = runInference(horizon, input) ?: return null
+            // Use cached PMF if available, otherwise run inference
+            val pmf = cachedPmf[horizon] ?: run {
+                val input = buildInputTensor() ?: return null
+                val result = runInference(horizon, input) ?: return null
+                cachedPmf[horizon] = result  // Cache for other methods
+                result
+            }
             
             // Get bin centers from metadata
             val binConfig = metadata?.binConfig?.get(horizon.toString())
@@ -827,9 +853,23 @@ object TcnPredictionService {
             return null
         }
         
+        // Check cache - invalidate if time changed
+        val currentTime = ReceiveData.time
+        if (currentTime != cachedTime) {
+            Log.d(LOG_ID, "Time changed in getQuantilePrediction, invalidating cache")
+            cachedProbabilities.clear()
+            cachedPmf.clear()
+            cachedTime = currentTime
+        }
+        
         try {
-            val input = buildInputTensor() ?: return null
-            val pmf = runInference(horizon, input) ?: return null
+            // Use cached PMF if available, otherwise run inference
+            val pmf = cachedPmf[horizon] ?: run {
+                val input = buildInputTensor() ?: return null
+                val result = runInference(horizon, input) ?: return null
+                cachedPmf[horizon] = result  // Cache for other methods
+                result
+            }
             
             // Get bin centers from metadata for accurate quantile computation
             val binConfig = metadata?.binConfig?.get(horizon.toString())

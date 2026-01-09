@@ -167,6 +167,42 @@ object GlucosePredictionService : SharedPreferences.OnSharedPreferenceChangeList
     }
     
     /**
+     * Get trend probabilities for a specific horizon using the currently selected model.
+     * Routes to either baseline TcnPredictionService or E2 TcnMultiheadPredictionService.
+     */
+    fun getTrendProbabilities(context: Context, horizon: Int): TrendProbabilities? {
+        init(context)
+        
+        if (!isAvailable()) {
+            Log.w(LOG_ID, "Selected model ($currentModel) not available for trend probabilities")
+            return null
+        }
+        
+        return when (currentModel) {
+            Constants.PREDICTION_MODEL_E2 -> TcnMultiheadPredictionService.getTrendProbabilities(context, horizon)
+            else -> TcnPredictionService.getTrendProbabilities(context, horizon)
+        }
+    }
+    
+    /**
+     * Get zone probabilities for a specific horizon using the currently selected model.
+     * Routes to either baseline TcnPredictionService or E2 TcnMultiheadPredictionService.
+     */
+    fun getZoneProbabilities(context: Context, horizon: Int, currentGlucose: Int): ZoneProbabilities? {
+        init(context)
+        
+        if (!isAvailable()) {
+            Log.w(LOG_ID, "Selected model ($currentModel) not available for zone probabilities")
+            return null
+        }
+        
+        return when (currentModel) {
+            Constants.PREDICTION_MODEL_E2 -> TcnMultiheadPredictionService.getZoneProbabilities(context, horizon, currentGlucose)
+            else -> TcnPredictionService.getZoneProbabilities(context, horizon, currentGlucose)
+        }
+    }
+    
+    /**
      * Get the predicted trend rate based on Q50 15-minute prediction.
      * Returns rate in mg/dL per minute (same scale as Dexcom rate).
      * 

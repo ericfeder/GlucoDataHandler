@@ -67,9 +67,12 @@ object TcnMultiheadPredictionService {
     // Map from horizon to output tensor index
     private var outputIndexMap: MutableMap<Int, Int> = mutableMapOf()
     
-    // Cache
+    // Cache for trend probabilities
     private var cachedProbabilities: MutableMap<Int, TrendProbabilities> = mutableMapOf()
     private var cachedTime: Long = 0L
+    
+    // Cache for raw PMF to ensure consistency across getTrendProbabilities, getZoneProbabilities, and getQuantilePrediction
+    private var cachedPmf: MutableMap<Int, FloatArray> = mutableMapOf()
     
     /**
      * Initialize the E2 multihead prediction service.
@@ -183,6 +186,7 @@ object TcnMultiheadPredictionService {
         if (currentTime != cachedTime) {
             Log.d(LOG_ID, "Time changed, invalidating cache")
             cachedProbabilities.clear()
+            cachedPmf.clear()
             cachedTime = currentTime
         }
         
@@ -191,11 +195,13 @@ object TcnMultiheadPredictionService {
         }
         
         try {
-            // Build input tensor
-            val input = buildInputTensor() ?: return null
-            
-            // Run inference
-            val pmf = runInference(horizon, input) ?: return null
+            // Use cached PMF if available, otherwise run inference
+            val pmf = cachedPmf[horizon] ?: run {
+                val input = buildInputTensor() ?: return null
+                val result = runInference(horizon, input) ?: return null
+                cachedPmf[horizon] = result  // Cache the PMF for getZoneProbabilities/getQuantilePrediction
+                result
+            }
             
             // Convert PMF to trend probabilities
             val trendProbs = computeTrendProbabilities(pmf, horizon)
@@ -224,6 +230,105 @@ object TcnMultiheadPredictionService {
             }
         }
         return results
+    }
+    
+    /**
+     * Get zone probabilities for a specific horizon using E2 model.
+     * 
+     * Zone thresholds (standard):
+     * - Very Low: < 54 mg/dL
+     * - Low: 54-69 mg/dL
+     * - In Range: 70-180 mg/dL
+     * - High: 181-250 mg/dL
+     * - Very High: > 250 mg/dL
+     */
+    fun getZoneProbabilities(context: Context, horizon: Int, currentGlucose: Int): ZoneProbabilities? {
+        init(context)
+        
+        if (!modelAvailable || horizon !in PREDICTION_HORIZONS) {
+            return null
+        }
+        
+        if (currentGlucose <= 0) {
+            return null
+        }
+        
+        // Check cache - invalidate if time changed
+        val currentTime = ReceiveData.time
+        if (currentTime != cachedTime) {
+            Log.d(LOG_ID, "Time changed in getZoneProbabilities, invalidating cache")
+            cachedProbabilities.clear()
+            cachedPmf.clear()
+            cachedTime = currentTime
+        }
+        
+        try {
+            // Use cached PMF if available, otherwise run inference
+            val pmf = cachedPmf[horizon] ?: run {
+                val input = buildInputTensor() ?: return null
+                val result = runInference(horizon, input) ?: return null
+                cachedPmf[horizon] = result  // Cache for other methods
+                result
+            }
+            
+            // Get bin centers from metadata
+            val binConfig = metadata?.binConfig?.get(horizon.toString())
+            val binCenters = binConfig?.binCenters
+            val nBins = pmf.size
+            val useBinCenters = binCenters != null && binCenters.size == nBins
+            
+            // Fallback parameters if bin centers not available
+            val minDelta = binConfig?.min?.toFloat() ?: (-3f * horizon - 25f)
+            val maxDelta = binConfig?.max?.toFloat() ?: (3f * horizon + 25f)
+            val step = if (nBins > 1) (maxDelta - minDelta) / (nBins - 1) else 1f
+            
+            // Initialize zone probabilities
+            var probVeryLow = 0f
+            var probLow = 0f
+            var probInRange = 0f
+            var probHigh = 0f
+            var probVeryHigh = 0f
+            
+            // Sum probabilities for each zone
+            for (i in pmf.indices) {
+                val delta = if (useBinCenters) {
+                    binCenters!![i].toFloat()
+                } else {
+                    minDelta + i * step
+                }
+                
+                val predictedGlucose = currentGlucose + delta
+                
+                when {
+                    predictedGlucose < 54 -> probVeryLow += pmf[i]
+                    predictedGlucose < 70 -> probLow += pmf[i]
+                    predictedGlucose <= 180 -> probInRange += pmf[i]
+                    predictedGlucose <= 250 -> probHigh += pmf[i]
+                    else -> probVeryHigh += pmf[i]
+                }
+            }
+            
+            val zoneProbs = mapOf(
+                GlucoseZone.VERY_LOW to probVeryLow,
+                GlucoseZone.LOW to probLow,
+                GlucoseZone.IN_RANGE to probInRange,
+                GlucoseZone.HIGH to probHigh,
+                GlucoseZone.VERY_HIGH to probVeryHigh
+            )
+            
+            Log.d(LOG_ID, "E2 Zone probabilities for ${horizon}min (glucose=$currentGlucose): " +
+                    "VeryLow=${String.format("%.1f%%", probVeryLow * 100)}, " +
+                    "Low=${String.format("%.1f%%", probLow * 100)}, " +
+                    "InRange=${String.format("%.1f%%", probInRange * 100)}, " +
+                    "High=${String.format("%.1f%%", probHigh * 100)}, " +
+                    "VeryHigh=${String.format("%.1f%%", probVeryHigh * 100)}")
+            
+            return ZoneProbabilities(horizon, currentGlucose, zoneProbs)
+            
+        } catch (e: Exception) {
+            Log.e(LOG_ID, "Error computing zone probabilities: ${e.message}", e)
+            return null
+        }
     }
     
     /**
@@ -408,9 +513,23 @@ object TcnMultiheadPredictionService {
             return null
         }
         
+        // Check cache - invalidate if time changed
+        val currentTime = ReceiveData.time
+        if (currentTime != cachedTime) {
+            Log.d(LOG_ID, "Time changed in getQuantilePrediction, invalidating cache")
+            cachedProbabilities.clear()
+            cachedPmf.clear()
+            cachedTime = currentTime
+        }
+        
         try {
-            val input = buildInputTensor() ?: return null
-            val pmf = runInference(horizon, input) ?: return null
+            // Use cached PMF if available, otherwise run inference
+            val pmf = cachedPmf[horizon] ?: run {
+                val input = buildInputTensor() ?: return null
+                val result = runInference(horizon, input) ?: return null
+                cachedPmf[horizon] = result  // Cache for other methods
+                result
+            }
             
             val binConfig = metadata?.binConfig?.get(horizon.toString())
             val binCenters = binConfig?.binCenters
@@ -518,10 +637,11 @@ object TcnMultiheadPredictionService {
     }
     
     /**
-     * Clear cached probabilities.
+     * Clear cached probabilities and PMF.
      */
     fun clearCache() {
         cachedProbabilities.clear()
+        cachedPmf.clear()
         cachedTime = 0L
     }
     
@@ -546,4 +666,5 @@ object TcnMultiheadPredictionService {
      */
     fun getAvailableHorizons(): List<Int> = if (modelAvailable) PREDICTION_HORIZONS else emptyList()
 }
+
 

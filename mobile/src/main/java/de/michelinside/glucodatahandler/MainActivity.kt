@@ -62,6 +62,7 @@ import de.michelinside.glucodatahandler.common.notifier.NotifierInterface
 import de.michelinside.glucodatahandler.common.notifier.NotifySource
 import de.michelinside.glucodatahandler.common.tasks.DexcomShareSourceTask
 import de.michelinside.glucodatahandler.common.ui.Dialogs
+import de.michelinside.glucodatahandler.common.prediction.GlucosePredictionService
 import de.michelinside.glucodatahandler.common.prediction.GlucoseZone
 import de.michelinside.glucodatahandler.common.prediction.PredictionData
 import de.michelinside.glucodatahandler.common.prediction.TcnPredictionService
@@ -1177,7 +1178,8 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                 return
             }
             
-            var probabilities = TcnPredictionService.getTrendProbabilities(this, selectedHorizon)
+            // Use GlucosePredictionService to respect model selection (baseline vs E2)
+            var probabilities = GlucosePredictionService.getTrendProbabilities(this, selectedHorizon)
             val isTestData: Boolean
             
             // If no real data, use test probabilities to verify chart works
@@ -1220,10 +1222,11 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
                 return
             }
             
+            // Use GlucosePredictionService to respect model selection (baseline vs E2)
             val zoneProbabilities = if (isTestData) {
                 TcnPredictionService.getTestZoneProbabilities(currentGlucose, selectedHorizon)
             } else {
-                TcnPredictionService.getZoneProbabilities(this, selectedHorizon, currentGlucose)
+                GlucosePredictionService.getZoneProbabilities(this, selectedHorizon, currentGlucose)
                     ?: TcnPredictionService.getTestZoneProbabilities(currentGlucose, selectedHorizon)
             }
             
