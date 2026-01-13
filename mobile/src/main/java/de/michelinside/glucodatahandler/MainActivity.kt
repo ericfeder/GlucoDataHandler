@@ -1167,6 +1167,11 @@ class MainActivity : AppCompatActivity(), NotifierInterface {
             
             // Update the trend probability chart
             updateTrendProbabilityChart()
+            
+            // Highlight the corresponding point on the time series chart
+            if (::chartCreator.isInitialized) {
+                chartCreator.highlightHorizon(horizon)
+            }
         } catch (exc: Exception) {
             Log.e(LOG_ID, "selectHorizon exception: ${exc.message}")
         }

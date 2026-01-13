@@ -1038,4 +1038,36 @@ open class ChartCreator(protected val chart: GlucoseChart, protected val context
             Log.e(LOG_ID, "onSharedPreferenceChanged exception: " + exc.message.toString() )
         }
     }
+
+    /**
+     * Highlights the prediction point for a specific time horizon on the chart.
+     * This shows the tooltip/marker for that point.
+     * @param horizonMinutes The prediction horizon in minutes (e.g., 5, 10, 15, 20, 25, 30)
+     */
+    fun highlightHorizon(horizonMinutes: Int) {
+        if (!touchEnabled || chart.data == null) return
+        
+        try {
+            val predTime = ReceiveData.time + (horizonMinutes * 60 * 1000L)
+            val chartX = TimeValueFormatter.to_chart_x(predTime)
+            
+            // Find the "Predicted" dataset by label
+            for (i in 0 until chart.data.dataSetCount) {
+                val ds = chart.data.getDataSetByIndex(i)
+                if (ds.label == "Predicted") {
+                    val entry = ds.getEntryForXValue(chartX, Float.NaN)
+                    if (entry != null) {
+                        Log.d(LOG_ID, "Highlighting horizon ${horizonMinutes}min at x=${entry.x}")
+                        // Use callListener=false to avoid infinite recursion with onFuturePointSelected
+                        chart.highlightValue(entry.x, i, false)
+                        chart.invalidate()  // Force redraw to show the marker
+                    }
+                    return
+                }
+            }
+            Log.d(LOG_ID, "No Predicted dataset found for highlighting")
+        } catch (exc: Exception) {
+            Log.e(LOG_ID, "highlightHorizon exception: " + exc.message.toString())
+        }
+    }
 }
